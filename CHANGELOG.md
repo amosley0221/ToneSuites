@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-14
+
 ### Improved
 - Open from NAS now browses every shared folder on your NAS, not just the synced Tone folder. Files you open there save straight back to the NAS. A new "Browse from" setting lets you choose where browsing starts.
 

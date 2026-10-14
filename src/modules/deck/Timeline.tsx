@@ -4,7 +4,7 @@ import { Button, Eyebrow } from '@/ui';
 import type { DeckDoc } from './doc';
 import { ANIM_EFFECTS, elLabel, type El } from './model';
 import * as ops from './ops';
-import { dragAnim, pxToSec, rulerSeconds, rulerTicks, secToPct, slideBuildTime, type DragMode } from './timeline';
+import { dragAnim, pxToSec, rulerSeconds, rulerTicks, secToPct, slideBuildTime, type DragMode } from './timelineMath';
 
 export function Timeline({ doc, playhead, setPlayhead }: { doc: DeckDoc; playhead: number | null; setPlayhead: (t: number | null) => void }) {
   const lane = useRef<HTMLDivElement>(null);

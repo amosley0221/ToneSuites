@@ -5,7 +5,7 @@ import type { DeckDoc } from './doc';
 import { SLIDE_H, SLIDE_W, slideTitle, type Slide } from './model';
 import { useSize } from './parts';
 import { SlideView } from './SlideView';
-import { slideBuildTime } from './timeline';
+import { slideBuildTime } from './timelineMath';
 
 const TRANS_DUR: Record<Slide['transition'], number> = { none: 0, fade: 0.5, push: 0.5, morph: 0.8 };
 const MUTE = '#8d8d96', LINE = '#2b2b32', INK = '#f2f1ee';

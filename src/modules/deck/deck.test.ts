@@ -6,7 +6,7 @@ import {
 import * as ops from './ops';
 import { deckToMarkdown, deckToOutline, outlineToDeck, parseOutline } from './outline';
 import { deserializeDeck, serializeDeck } from './serialize';
-import { dragAnim, nextAnimation, progressAt, pxToSec, rulerSeconds, rulerTicks, slideBuildTime } from './timeline';
+import { dragAnim, nextAnimation, progressAt, pxToSec, rulerSeconds, rulerTicks, slideBuildTime } from './timelineMath';
 import { layoutTextEl } from './textLayout';
 import { rectToPdf, rectToPptx, unitsToInX, unitsToInY, unitsToPt, wrapText } from './units';
 import { resizeRect, snapBox } from './Canvas';

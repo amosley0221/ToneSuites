@@ -15,6 +15,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: No file names that differ only by case (they break Windows and macOS builds)
+        run: |
+          d=$(git ls-files | sort -f | uniq -di)
+          if [ -n "$d" ]; then echo "Case-insensitive name clash: $d"; exit 1; fi
       - run: npm ci
       - run: npm run typecheck
       - run: npm test

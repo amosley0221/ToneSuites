@@ -1,7 +1,7 @@
 // Renders one slide at any pixel width: 1920×1080 logical stage scaled with a CSS transform.
 // Used by the editor canvas, thumbnails, layout previews and the presenter.
 import React, { CSSProperties } from 'react';
-import { progressAt } from './timeline';
+import { progressAt } from './timelineMath';
 import {
   cssFont, fontSizeOf, masterOf, MONO_FONT, PH_HINT, SLIDE_H, SLIDE_W, slideBg, slideInk,
   type DeckData, type El, type Rect, type Slide, type TextEl,

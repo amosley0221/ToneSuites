@@ -4,7 +4,7 @@ import {
   applyLayout, cloneSlide, newId, newSlide, SLIDE_H, SLIDE_W, slideBg, slideInk, textEl,
   type AnimEffect, type El, type LayoutId, type ShapeKind, type TableEl, type Transition,
 } from './model';
-import { nextAnimation } from './timeline';
+import { nextAnimation } from './timelineMath';
 
 export function addSlide(doc: DeckDoc, layoutId?: LayoutId) {
   const cur = doc.slide();

@@ -150,9 +150,17 @@ jobs:
           "$BT/apksigner" verify --print-certs "$OUT"
           echo "APK=$OUT" >> "$GITHUB_ENV"
       - name: Upload APK to the release
+        # By release id: draft releases can't be found by tag.
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" "$APK" --clobber
+          RID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          R="${{ github.repository }}"
+          OLD=$(gh api "repos/$R/releases/$RID/assets" --jq '.[] | select(.name=="'"$APK"'") | .id')
+          if [ -n "$OLD" ]; then gh api -X DELETE "repos/$R/releases/assets/$OLD"; fi
+          curl -sSf -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"$APK" "https://uploads.github.com/repos/$R/releases/$RID/assets?name=$APK" > /dev/null
+          echo "Uploaded $APK"
 
   publish:
     needs: [create-release, desktop, android]
@@ -163,4 +171,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.create-release.outputs.tag }}
-        run: gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest
+          RID: ${{ needs.create-release.outputs.release_id }}
+        run: gh api -X PATCH "repos/${{ github.repository }}/releases/$RID" -f tag_name="$TAG" -F draft=false -f make_latest=true --jq '.html_url'

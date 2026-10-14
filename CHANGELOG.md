@@ -7,6 +7,7 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Android: the top bar no longer sits under the status bar (and the bottom bar no longer under the gesture bar) — on foldables too, folded or unfolded. Status bar icons follow the light/dark theme.
 - Update prompts on Windows and macOS always show the update notes.
 
 ## [0.1.0] - 2026-10-14

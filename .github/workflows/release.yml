@@ -146,6 +146,10 @@ jobs:
         run: |
           npx tauri android init --ci
           npx tauri icon src-tauri/app-icon.png
+          # Our MainActivity passes status/gesture bar sizes to the web app (edge-to-edge on Android 15+).
+          MA=$(find src-tauri/gen/android/app/src/main -name MainActivity.kt | head -1)
+          test -n "$MA" || { echo "::error::Generated MainActivity.kt not found"; exit 1; }
+          cp src-tauri/android/MainActivity.kt "$MA"
       - name: Build APK
         run: npx tauri android build --apk --ci --target aarch64 armv7
       - name: Sign APK (stable key — never change it, or updates stop installing over the old app)

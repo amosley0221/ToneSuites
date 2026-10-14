@@ -187,9 +187,9 @@ export function Dialog({ title, subtitle, width = 720, height = 480, onClose, ch
     return () => window.removeEventListener('keydown', k, true);
   }, [onClose]);
   return (
-    <div onPointerDown={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+    <div onPointerDown={onClose} style={{ position: 'fixed', inset: 0, padding: 'var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left)', background: 'rgba(0,0,0,.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
       <div onPointerDown={(e) => e.stopPropagation()}
-        style={{ width, height, maxWidth: 'calc(100vw - 16px)', maxHeight: 'calc(100vh - 16px)', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-modal)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        style={{ width, height, maxWidth: 'calc(100vw - 16px - var(--safe-left) - var(--safe-right))', maxHeight: 'calc(100vh - 16px - var(--safe-top) - var(--safe-bottom))', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-modal)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
           <span style={{ width: 10, height: 10, background: 'var(--accent)', flexShrink: 0 }} />
           <span style={{ font: 'var(--type-subtitle)', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>{title}</span>

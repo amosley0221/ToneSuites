@@ -4,6 +4,14 @@
 @import './typography.css';
 
 * { box-sizing: border-box; }
+/* Safe areas: native values on Android (see src/core/insets.ts), CSS env() elsewhere. */
+:root {
+  --safe-top: max(var(--inset-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-right: max(var(--inset-right, 0px), env(safe-area-inset-right, 0px));
+  --safe-bottom: max(var(--inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  --safe-left: max(var(--inset-left, 0px), env(safe-area-inset-left, 0px));
+}
+.app-root { padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 html, body, #root { height: 100%; }
 body { margin: 0; overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; }
 input, textarea, select, button { font: inherit; color: inherit; }
@@ -37,9 +45,9 @@ a:hover { color: var(--ink); }
 .empty-hint { color: var(--mute); font: var(--type-small); padding: 8px 0; }
 
 /* Compact (phone / narrow window) layout — Android */
-.compact .inspector { position: fixed; left: 0; right: 0; bottom: 0; width: auto; max-height: 55vh; border-left: 0; border-top: 1px solid var(--line); box-shadow: var(--shadow-float); z-index: 40; transform: translateY(100%); transition: transform var(--dur-fast) var(--ease); }
+.compact .inspector { position: fixed; left: var(--safe-left); right: var(--safe-right); bottom: var(--safe-bottom); width: auto; max-height: 55vh; border-left: 0; border-top: 1px solid var(--line); box-shadow: var(--shadow-float); z-index: 40; transform: translateY(100%); transition: transform var(--dur-fast) var(--ease); }
 .compact .inspector.open { transform: translateY(0); }
-.compact .toolrail { position: fixed; left: 0; right: 0; bottom: 0; width: auto !important; height: 48px; flex-direction: row !important; overflow-x: auto; border-right: 0 !important; border-top: 1px solid var(--line); z-index: 30; }
+.compact .toolrail { position: fixed; left: var(--safe-left); right: var(--safe-right); bottom: var(--safe-bottom); width: auto !important; height: 48px; flex-direction: row !important; overflow-x: auto; border-right: 0 !important; border-top: 1px solid var(--line); z-index: 30; }
 .compact .menurow { overflow-x: auto; }
 .compact .docmeta { display: none !important; }
 

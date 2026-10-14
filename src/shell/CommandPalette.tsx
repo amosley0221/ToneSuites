@@ -64,7 +64,7 @@ export function CommandPalette() {
   return (
     <div onPointerDown={close} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 90 }}>
       <div onPointerDown={(e) => e.stopPropagation()}
-        style={{ position: 'absolute', top: 120, left: '50%', transform: 'translateX(-50%)', width: 620, maxWidth: 'calc(100vw - 16px)', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-modal)' }}>
+        style={{ position: 'absolute', top: 'calc(120px + var(--safe-top))', left: '50%', transform: 'translateX(-50%)', width: 620, maxWidth: 'calc(100vw - 16px)', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-modal)' }}>
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={key} placeholder="Type a command or file name…"
           style={{ width: '100%', padding: '14px 16px', background: 'transparent', border: 0, borderBottom: '1px solid var(--line)', outline: 'none', font: '600 16px var(--font-ui)', color: 'var(--ink)' }} />
         <div style={{ maxHeight: 420, overflowY: 'auto' }}>

@@ -4,6 +4,7 @@ import { openRecent } from '@/core/documents';
 import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp } from '@/core/store';
+import { setSystemBarTheme, startInsets } from '@/core/insets';
 import { checkForUpdate } from '@/core/updater';
 import { UPDATE_CHECK_HOURS } from '@/config';
 import { startSyncLoop } from '@/storage/sync';
@@ -83,7 +84,8 @@ export function App() {
     })();
   }, []);
 
-  useEffect(() => { applyTheme(theme, accent); }, [theme, accent]);
+  useEffect(() => { applyTheme(theme, accent); setSystemBarTheme(theme); }, [theme, accent]);
+  useEffect(() => { startInsets(); }, []);
 
   // Remember open tabs for session restore.
   useEffect(() => {
@@ -134,7 +136,7 @@ export function App() {
   if (!loaded) return <div style={{ height: '100%', background: 'var(--bg0)' }} />;
 
   return (
-    <div className={compact ? 'compact' : ''} style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg0)', color: 'var(--ink)', font: 'var(--type-body)', overflow: 'hidden' }}>
+    <div className={compact ? 'app-root compact' : 'app-root'} style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg0)', color: 'var(--ink)', font: 'var(--type-body)', overflow: 'hidden' }}>
       <TitleBar compact={compact} />
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {activeId === 'home' && <Home compact={compact} />}
@@ -143,7 +145,7 @@ export function App() {
       <StatusBar />
       {palette && <CommandPalette />}
       {dialogs.map((d) => <div key={d.id}>{d.render(() => useApp.getState().popDialog(d.id))}</div>)}
-      <div style={{ position: 'fixed', bottom: 40, left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 200, pointerEvents: 'none' }}>
+      <div style={{ position: 'fixed', bottom: 'calc(40px + var(--safe-bottom))', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 200, pointerEvents: 'none' }}>
         {toasts.map((t) => (
           <div key={t.id} style={{ background: 'var(--bg1)', border: `1px solid ${t.tone === 'error' ? 'var(--negative)' : 'var(--line)'}`, boxShadow: 'var(--shadow-float)', padding: '9px 14px', font: 'var(--type-small)', animation: 'toast-in 120ms var(--ease)', maxWidth: 560 }}>
             {t.tone === 'error' && <span style={{ color: 'var(--negative)', marginRight: 8 }}>●</span>}{t.msg}

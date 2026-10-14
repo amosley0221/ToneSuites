@@ -85,7 +85,7 @@ export function useFormulaAssist(wb: Workbook, text: string, caret: number) {
   const matches = useMemo(() => {
     if (!tok) return [];
     const up = tok.token.toUpperCase();
-    return functionList(wb).filter((f) => f.name.startsWith(up)).slice(0, 8);
+    return functionList(wb).filter((f) => f.name.startsWith(up)).sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name)).slice(0, 8);
   }, [wb, tok?.token]);
   const key = tok ? `${tok.start}:${tok.token}` : null;
   const open = !!tok && matches.length > 0 && dismissed !== key;

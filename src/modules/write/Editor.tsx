@@ -36,7 +36,7 @@ export function WriteEditor({ doc, model, onChange, compact, api }: EditorProps<
       {!ui.focus && <Toolbar model={model} api={api} compact={compact} onPanels={() => setPanelsOpen((v) => !v)} />}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative' }}>
         <PageCanvas model={model} onChange={onChange} compact={compact} refresh={api.refreshChrome} />
-        {ui.find && <FindPanel model={model} onChange={onChange} />}
+        {ui.find && <FindPanel model={model} onChange={onChange} right={side && !compact ? 300 : 20} />}
         {side === 'review' && <ReviewPane model={model} onChange={onChange} open={sheetOpen} />}
         {side === 'inspector' && <Inspector model={model} onChange={onChange} open={sheetOpen} />}
         {ui.focus && (

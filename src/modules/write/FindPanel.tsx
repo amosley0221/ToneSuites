@@ -5,7 +5,7 @@ import { Checkbox } from '@/ui';
 import type { WriteModel } from './model';
 import { findKey, type FindQuery } from './plugins';
 
-export function FindPanel({ model, onChange }: { model: WriteModel; onChange: () => void }) {
+export function FindPanel({ model, onChange, right }: { model: WriteModel; onChange: () => void; right: number }) {
   const st = findKey.getState(model.state);
   const [text, setText] = useState(st?.text || selectedText(model));
   const [repl, setRepl] = useState('');
@@ -54,7 +54,7 @@ export function FindPanel({ model, onChange }: { model: WriteModel; onChange: ()
   const field = { padding: '6px 10px', background: 'var(--bg0)', color: 'var(--ink)', border: '1px solid var(--line)', outline: 'none', font: 'var(--type-label)', fontSize: 12, flex: 1, minWidth: 0 } as const;
 
   return (
-    <div className="wr-find-panel" onKeyDown={key}>
+    <div className="wr-find-panel" style={{ right }} onKeyDown={key}>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <input ref={inputRef} value={text} onChange={(e) => setText(e.target.value)} placeholder="Find" style={field} />
         <span style={{ font: 'var(--type-mono)', color: 'var(--mute)', minWidth: 54, textAlign: 'right' }}>{text ? (matches.length ? `${current + 1} of ${matches.length}` : '0 of 0') : ''}</span>

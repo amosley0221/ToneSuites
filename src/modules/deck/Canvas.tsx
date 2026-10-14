@@ -52,7 +52,7 @@ export function resizeRect(o: Rect, h: Handle, dx: number, dy: number, keepAspec
   return { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(hh) };
 }
 
-export function Canvas({ doc, api, animTime }: { doc: DeckDoc; api: ModuleApi; animTime?: number }) {
+export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: ModuleApi; animTime?: number; pad?: number }) {
   const [boxRef, size] = useSize<HTMLDivElement>();
   const [guides, setGuides] = useState<Guide[]>([]);
   const [marquee, setMarquee] = useState<Rect | null>(null);
@@ -61,7 +61,7 @@ export function Canvas({ doc, api, animTime }: { doc: DeckDoc; api: ModuleApi; a
   const slide = doc.slide();
   const d = doc.data;
 
-  const availW = Math.max(120, size.w - 64), availH = Math.max(68, size.h - 64);
+  const availW = Math.max(120, size.w - pad * 2), availH = Math.max(68, size.h - pad * 2);
   const fit = Math.min(availW, (availH * SLIDE_W) / SLIDE_H);
   const width = Math.floor(doc.ui.zoomFit ? fit : Math.min(DEFAULT_SLIDE_PX, fit));
   const scale = width / SLIDE_W;
@@ -189,7 +189,8 @@ export function Canvas({ doc, api, animTime }: { doc: DeckDoc; api: ModuleApi; a
       <div ref={slideRef} onPointerDown={onBackgroundDown} style={{ position: 'relative', width, height, boxShadow: 'var(--shadow-page)', flexShrink: 0, touchAction: 'none' }}>
         <SlideView deck={d} slide={slide} index={doc.ui.current} total={d.slides.length} width={width} mediaUrl={(p) => doc.mediaUrl(p)} hints
           animTime={animTime} editingId={doc.ui.editing} editingCell={editingCell}
-          onElPointerDown={onElPointerDown} onElDoubleClick={onElDoubleClick} onTextInput={onTextInput} onTextBlur={onTextBlur} onCellInput={onCellInput} />
+          onElPointerDown={onElPointerDown} onElDoubleClick={onElDoubleClick} onTextInput={onTextInput} onTextBlur={onTextBlur} onCellInput={onCellInput}
+          onCellBlur={() => { setEditingCell(null); if (doc.ui.editing) { doc.ui.editing = null; doc.emit(); } }} />
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           {emptyPh.map((el) => (
             <div key={'ph' + el.id} style={{ position: 'absolute', left: el.x * scale, top: el.y * scale, width: el.w * scale, height: el.h * scale, border: '1px dashed rgba(128,128,128,.55)' }} />

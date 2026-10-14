@@ -130,7 +130,7 @@ export function ChartSvg({ data, opts, width, height }: { data: ChartData; opts:
     );
   }
 
-  if (opts.type === 'pie') return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>{title}{pie(data, visible[0], W, H, titleH, legendH, opts.labels, color)}{legend}</svg>;
+  if (opts.type === 'pie') return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>{title}{pie(visible[0], W, H, titleH, legendH, opts.labels, color)}{legend}</svg>;
 
   const horizontal = opts.type === 'bar';
   const stacked = opts.type === 'stacked';
@@ -264,7 +264,7 @@ export function ChartSvg({ data, opts, width, height }: { data: ChartData; opts:
   );
 }
 
-function pie(data: ChartData, s: ChartSeries & { idx: number }, W: number, H: number, titleH: number, legendH: number, labels: boolean, color: (i: number) => string) {
+function pie(s: ChartSeries & { idx: number }, W: number, H: number, titleH: number, legendH: number, labels: boolean, color: (i: number) => string) {
   const vals = s.values.map((v) => Math.max(0, v ?? 0));
   const total = vals.reduce((a, b) => a + b, 0);
   const cx = W / 2;

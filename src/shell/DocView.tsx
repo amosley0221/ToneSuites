@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { markDirty, switchFolderFile } from '@/core/documents';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { markDirty, moduleApi, switchFolderFile } from '@/core/documents';
 import { models, useApp } from '@/core/store';
 import type { Doc, ModuleDef } from '@/core/types';
 import { loadModule } from '@/modules/meta';
@@ -16,6 +16,7 @@ export function DocView({ doc, active, compact }: { doc: Doc; active: boolean; c
     return () => { live = false; };
   }, [doc.mode]);
   const onChange = useCallback(() => markDirty(doc.id), [doc.id]);
+  const api = useMemo(() => moduleApi(doc.id), [doc.id]);
   const model = models.get(doc.id);
 
   return (
@@ -29,7 +30,7 @@ export function DocView({ doc, active, compact }: { doc: Doc; active: boolean; c
       {err && <div style={{ padding: 24, color: 'var(--negative)' }}>Failed to load module: {err}</div>}
       {mod && model !== undefined && (
         // Keyed on the model object: replacing it (revert, folder switch, sync update) remounts the editor.
-        <mod.Editor key={doc.id + ':' + modelKey(model)} doc={doc} model={model} onChange={onChange} compact={compact} />
+        <mod.Editor key={doc.id + ':' + modelKey(model)} doc={doc} model={model} onChange={onChange} compact={compact} api={api} />
       )}
     </div>
   );

@@ -55,7 +55,7 @@ export interface PaperUi {
   stampText: string;
   textSize: number;
   selected: string | null;
-  signature: string | null;
+  signature: { url: string; aspect: number } | null;
   search: { open: boolean; query: string; hits: SearchHit[]; index: number; busy: boolean };
   thumbs: boolean;
   /** Bumped to ask the work area to scroll page `page` into view. */
@@ -111,19 +111,28 @@ export class PaperModel implements PaperData {
   setUi(patch: Partial<PaperUi>) { this.ui = { ...this.ui, ...patch }; this.emit(); }
 
   private snapshot(): Snapshot {
-    return JSON.stringify({ s: this.sources.map((s) => s.id), p: this.pages, e: this.edits, f: this.formValues, n: this.newFields, fl: this.flattenForm });
+    return JSON.stringify({ p: this.pages, e: this.edits, f: this.formValues, n: this.newFields, fl: this.flattenForm });
   }
   private restore(snap: Snapshot) {
     const o = JSON.parse(snap);
-    // Sources only ever grow; keep bytes of any still referenced.
-    this.sources = this.sources.filter((s) => o.s.includes(s.id));
+    // Sources only ever grow (unreferenced ones are dropped on serialize), so redo after undo still has its bytes.
     this.pages = o.p; this.edits = o.e; this.formValues = o.f; this.newFields = o.n; this.flattenForm = o.fl;
   }
 
-  /** Document change with an undo entry. Caller is responsible for marking the doc dirty. */
-  mutate(fn: (m: PaperModel) => void) {
-    this.undoStack.push(this.snapshot());
-    if (this.undoStack.length > 200) this.undoStack.shift();
+  private lastKey: { key: string; at: number } | null = null;
+
+  /**
+   * Document change with an undo entry. Caller is responsible for marking the doc dirty.
+   * Changes with the same `coalesce` key within 1.5 s share one undo entry (e.g. typing into a field).
+   */
+  mutate(fn: (m: PaperModel) => void, coalesce?: string) {
+    const now = Date.now();
+    const merge = coalesce && this.lastKey?.key === coalesce && now - this.lastKey.at < 1500;
+    this.lastKey = coalesce ? { key: coalesce, at: now } : null;
+    if (!merge) {
+      this.undoStack.push(this.snapshot());
+      if (this.undoStack.length > 200) this.undoStack.shift();
+    }
     this.redoStack = [];
     fn(this);
     this.clampPage();

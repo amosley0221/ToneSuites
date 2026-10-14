@@ -1,7 +1,7 @@
 // Editing operations shared by command handlers and the Editor. Each mutates the DeckDoc and commits.
 import type { DeckDoc } from './doc';
 import {
-  applyLayout, cloneSlide, newId, newSlide, SLIDE_H, SLIDE_W, textEl,
+  applyLayout, cloneSlide, newId, newSlide, SLIDE_H, SLIDE_W, slideBg, slideInk, textEl,
   type AnimEffect, type El, type LayoutId, type ShapeKind, type TableEl, type Transition,
 } from './model';
 import { nextAnimation } from './timeline';
@@ -74,7 +74,9 @@ export function insertText(doc: DeckDoc) {
 }
 
 export function insertShape(doc: DeckDoc, shape: ShapeKind) {
-  const accent = doc.data.theme.accent;
+  const s = doc.slide();
+  // Avoid an invisible shape when the slide background is the accent colour.
+  const accent = s && slideBg(doc.data, s).toLowerCase() === doc.data.theme.accent.toLowerCase() ? slideInk(doc.data, s) : doc.data.theme.accent;
   const rect = shape === 'line' ? { x: 660, y: 540, w: 600, h: 0 } : { x: 760, y: 340, w: 400, h: 400 };
   insert(doc, { id: newId(), type: 'shape', shape, fill: shape === 'line' ? '' : accent, stroke: shape === 'line' ? accent : '', strokeWidth: shape === 'line' ? 8 : 0, ...rect });
 }

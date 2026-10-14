@@ -98,7 +98,10 @@ async function drawImage(page: PDFPage, pdf: PDFDocument, doc: DeckDoc, el: Imag
         if (m.mime === 'image/png') img = await pdf.embedPng(m.bytes);
         else if (m.mime === 'image/jpeg') img = await pdf.embedJpg(m.bytes);
         else img = await pdf.embedPng(await imageToPng(m.url));
-      } catch { img = null; }
+      } catch {
+        // e.g. CMYK JPEG or odd PNG: let the browser decode and re-encode it
+        try { img = await pdf.embedPng(await imageToPng(m.url)); } catch { img = null; }
+      }
     }
     cache.set(el.src, img);
   }

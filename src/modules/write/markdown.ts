@@ -1,6 +1,6 @@
 // Markdown import/export (prosemirror-markdown + markdown-it with GFM tables & strikethrough).
 import MarkdownIt from 'markdown-it';
-import { MarkdownParser, MarkdownSerializer, type MarkdownSerializerState } from 'prosemirror-markdown';
+import { MarkdownParser, MarkdownSerializer } from 'prosemirror-markdown';
 import type { Node as PMNode } from 'prosemirror-model';
 import { EditorState } from 'prosemirror-state';
 import { schema } from './schema';
@@ -93,9 +93,8 @@ function replaceFootnoteMarkers(doc: PMNode, defs: Map<string, string>): PMNode 
 
 // ---------- Serializer ----------
 
-function cellText(state: MarkdownSerializerState, cell: PMNode): string {
+function cellText(cell: PMNode): string {
   const inner = serializer.serialize(cell, { tightLists: true }).trim();
-  void state;
   return inner.replace(/\n+/g, ' ').replace(/\|/g, '\\|') || ' ';
 }
 
@@ -139,7 +138,7 @@ const serializer: MarkdownSerializer = new MarkdownSerializer({
   list_item: (state, node) => state.renderContent(node),
   table: (state, node) => {
     const rows: string[][] = [];
-    node.forEach((row) => { const cells: string[] = []; row.forEach((c) => cells.push(cellText(state, c))); rows.push(cells); });
+    node.forEach((row) => { const cells: string[] = []; row.forEach((c) => cells.push(cellText(c))); rows.push(cells); });
     const cols = Math.max(...rows.map((r) => r.length));
     const line = (r: string[]) => '| ' + Array.from({ length: cols }, (_, i) => r[i] ?? ' ').join(' | ') + ' |';
     const out = [line(rows[0] ?? []), '| ' + Array.from({ length: cols }, () => '---').join(' | ') + ' |', ...rows.slice(1).map(line)];

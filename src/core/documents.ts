@@ -23,6 +23,7 @@ export function moduleApi(docId: string | null): ModuleApi {
     saveBytes: saveBytesAs,
     openNewDoc: (mode, model, title, convertedFrom) => openModel(mode, model, title, null, 'tone', convertedFrom),
     openBytesAsDoc: async (bytes, filename) => { await openConverted(bytes, filename, docId ?? undefined); },
+    refreshChrome: () => useApp.getState().bump(),
     runCommand: (id) => { void import('./commands').then((c) => c.runCommand(id)); },
   };
 }

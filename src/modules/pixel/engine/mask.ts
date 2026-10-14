@@ -334,3 +334,25 @@ export function maskOutline(m: Mask): number[] {
   }
   return segs;
 }
+
+/** Rotate a mask by 90° clockwise (1), 180° (2) or 90° counter-clockwise (3). */
+export function rotateMask(m: Mask, quarter: 1 | 2 | 3): Mask {
+  const { w, h } = m;
+  const out = quarter === 2 ? emptyMask(w, h) : emptyMask(h, w);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = m.data[y * w + x];
+    if (quarter === 1) out.data[x * h + (h - 1 - y)] = v;
+    else if (quarter === 2) out.data[(h - 1 - y) * w + (w - 1 - x)] = v;
+    else out.data[(w - 1 - x) * h + y] = v;
+  }
+  return out;
+}
+
+export function flipMask(m: Mask, horizontal: boolean): Mask {
+  const { w, h } = m;
+  const out = emptyMask(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    out.data[y * w + x] = horizontal ? m.data[y * w + (w - 1 - x)] : m.data[(h - 1 - y) * w + x];
+  }
+  return out;
+}

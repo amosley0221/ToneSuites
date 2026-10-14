@@ -15,7 +15,7 @@ const docCache = new WeakMap<Uint8Array, Promise<PDFDocumentProxy>>();
 export function loadPdf(bytes: Uint8Array): Promise<PDFDocumentProxy> {
   let p = docCache.get(bytes);
   if (!p) {
-    const task = pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false });
+    const task = pdfjs.getDocument({ data: bytes.slice(), enableXfa: false });
     task.onPassword = () => { void task.destroy(); };
     p = task.promise.catch((e: unknown) => {
       docCache.delete(bytes);
@@ -192,7 +192,7 @@ export function applyModel(model: PaperModel, opts: { stripMetadata?: boolean } 
 
 /** Render page `i` of arbitrary PDF bytes to a canvas at `scale`. */
 export async function renderBytesPage(bytes: Uint8Array, i: number, scale: number): Promise<HTMLCanvasElement> {
-  const task = pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false });
+  const task = pdfjs.getDocument({ data: bytes.slice() });
   const doc = await task.promise;
   try {
     const page = await doc.getPage(i + 1);
@@ -208,7 +208,7 @@ export async function renderBytesPage(bytes: Uint8Array, i: number, scale: numbe
 
 /** Text items of every page of arbitrary PDF bytes. */
 export async function bytesText(bytes: Uint8Array): Promise<TextItemLite[][]> {
-  const task = pdfjs.getDocument({ data: bytes.slice(), isEvalSupported: false });
+  const task = pdfjs.getDocument({ data: bytes.slice() });
   const doc = await task.promise;
   try {
     const out: TextItemLite[][] = [];

@@ -60,7 +60,7 @@ export function DropButton({ label, items, title, width }: { label: ReactNode; i
 }
 
 /** Numeric field in the inspector style (mono, label prefix). */
-export function NumField({ label, value, onChange, step = 1, min, width = 60 }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; width?: number }) {
+export function NumField({ label, value, onChange, step = 1, min, width = 60 }: { label: string; value: number; onChange: (v: number) => void; step?: number; min?: number; width?: number | string }) {
   const [draft, setDraft] = useState<string | null>(null);
   const commit = () => {
     if (draft === null) return;
@@ -99,4 +99,3 @@ export function ColorField({ value, onChange, title, allowNone }: { value: strin
   );
 }
 
-export const isMod = (e: { ctrlKey: boolean; metaKey: boolean }) => e.ctrlKey || e.metaKey;

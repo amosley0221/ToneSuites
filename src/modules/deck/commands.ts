@@ -1,6 +1,6 @@
 // Menu command handlers for Deck.
 import type { CommandHandler, ModuleApi } from '@/core/types';
-import { DeckDoc, extMime } from './doc';
+import { DeckDoc, extMime, sniffMime } from './doc';
 import type { LayoutId, ShapeKind, Transition } from './model';
 import * as ops from './ops';
 import { deckToMarkdown, outlineToDeck, parseOutline } from './outline';
@@ -22,6 +22,7 @@ export async function pickAndInsertImage(doc: DeckDoc, api: ModuleApi) {
 
 export async function insertImageBytes(doc: DeckDoc, bytes: Uint8Array, mime: string) {
   const { toDataUrl } = await import('./doc');
+  mime = sniffMime(bytes) ?? mime;
   const { loadImage } = await import('./raster');
   let natural: { w: number; h: number } | undefined;
   try {
@@ -79,7 +80,17 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
     'deck.edit.redo': w((d) => { if (typingInField()) document.execCommand('redo'); else d.redo(); }),
     'deck.edit.cut': w((d) => { if (typingInField()) document.execCommand('cut'); else ops.cutSelection(d); }),
     'deck.edit.copy': w((d) => { if (typingInField()) document.execCommand('copy'); else ops.copySelection(d); }),
-    'deck.edit.paste': w((d) => { if (!typingInField()) ops.paste(d); }),
+    'deck.edit.paste': w(async (d) => {
+      if (typingInField()) return;
+      if (ops.paste(d)) return;
+      // Nothing copied inside Deck: try an image from the system clipboard.
+      try {
+        for (const item of await navigator.clipboard.read()) {
+          const type = item.types.find((t) => t.startsWith('image/'));
+          if (type) { await insertImageBytes(d, new Uint8Array(await (await item.getType(type)).arrayBuffer()), type); return; }
+        }
+      } catch { /* clipboard permission denied or unsupported */ }
+    }),
     'deck.edit.duplicate': w((d) => { if (d.ui.selection.length) ops.duplicateSelection(d); else ops.duplicateSlide(d); }),
     'deck.edit.delete': w((d) => { if (!typingInField()) ops.deleteSelection(d); }),
     'deck.edit.selectAll': w((d) => { if (typingInField()) document.execCommand('selectAll'); else ops.selectAll(d); }),

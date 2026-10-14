@@ -9,6 +9,7 @@ export function StatusBar() {
   const docs = useApp((s) => s.docs);
   const activeId = useApp((s) => s.activeId);
   const sync = useApp((s) => s.sync);
+  useApp((s) => s.tick); // modules call api.refreshChrome() to update the hint
   const recents = useSettings((s) => s.s.recents.length);
   const allProviders = useSettings((s) => s.s.providers);
   const providers = allProviders.filter((p) => p.enabled && p.sync);

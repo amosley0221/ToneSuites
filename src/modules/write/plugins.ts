@@ -24,10 +24,10 @@ function spacerDeco(doc: PMNode, spacers: Spacer[]): DecorationSet {
   }, { side: -1, key: `sp${s.pos}:${s.height}`, ignoreSelection: true })));
 }
 
-const pagination = new Plugin({
+const pagination = new Plugin<{ spacers: Spacer[]; deco: DecorationSet }>({
   key: pageKey,
   state: {
-    init: () => ({ spacers: [], deco: DecorationSet.empty }),
+    init: () => ({ spacers: [] as Spacer[], deco: DecorationSet.empty }),
     apply(tr, prev) {
       const meta = tr.getMeta(pageKey) as Spacer[] | undefined;
       if (meta) return { spacers: meta, deco: spacerDeco(tr.doc, meta) };

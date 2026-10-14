@@ -2,7 +2,7 @@
 // Pure pdf-lib: runs in node for tests. Redaction rasterizing is injected (needs pdf.js + canvas).
 import {
   BlendMode, LineCapStyle, PDFArray, PDFCheckBox, PDFDict, PDFDocument, PDFDropdown, PDFHexString, PDFName, PDFNumber, PDFOptionList,
-  PDFPage, PDFRadioGroup, PDFRef, PDFStream, PDFString, PDFTextField, StandardFonts, degrees, rgb,
+  PDFPage, PDFRadioGroup, PDFRef, PDFStream, PDFString, PDFTextField, StandardFonts, TextAlignment, degrees, rgb,
   type PDFFont, type PDFObject, type RGB,
 } from 'pdf-lib';
 import { LETTER, type Edit, type PaperData, type Rect, type SourceDoc } from './model';
@@ -360,6 +360,7 @@ function addNewFields(doc: PDFDocument, data: PaperData, pages: PDFPage[], index
         const cb = form.createCheckBox(name);
         cb.addToPage(page, { ...box, borderColor: rgb(0.4, 0.4, 0.4), borderWidth: 1 });
         if (f.required) cb.enableRequired();
+        if (data.formValues[f.name] === true) cb.check();
       } else if (f.type === 'signature') {
         // pdf-lib can't create signature fields, so write the /FT /Sig widget directly.
         const ctx = doc.context;
@@ -375,7 +376,9 @@ function addNewFields(doc: PDFDocument, data: PaperData, pages: PDFPage[], index
         const tf = form.createTextField(name);
         tf.addToPage(page, { ...box, font, borderColor: rgb(0.4, 0.4, 0.4), borderWidth: 1 });
         if (f.required) tf.enableRequired();
-        if (f.type === 'number' || f.type === 'date') tf.setAlignment(f.type === 'number' ? 2 : 0);
+        if (f.type === 'number') tf.setAlignment(TextAlignment.Right);
+        const v = data.formValues[f.name];
+        if (typeof v === 'string' && v) tf.setText(v);
       }
     } catch (e) {
       warnings.push(`Field "${f.name}": ${e instanceof Error ? e.message : String(e)}`);

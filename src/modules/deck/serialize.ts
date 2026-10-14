@@ -1,5 +1,5 @@
 // Native .tone payload: deck.json + media/* (images referenced by path). formatVersion 1.
-import { DeckDoc, extMime, toDataUrl } from './doc';
+import { DeckDoc, extMime, sniffMime, toDataUrl } from './doc';
 import { defaultMaster, defaultTheme, type DeckData } from './model';
 
 export async function serializeDeck(doc: DeckDoc): Promise<Record<string, Uint8Array | string>> {
@@ -22,7 +22,7 @@ export async function deserializeDeck(files: Record<string, Uint8Array>, formatV
   for (const [path, bytes] of Object.entries(files)) {
     if (!path.startsWith('media/')) continue;
     const ext = path.split('.').pop() ?? '';
-    const mime = extMime(ext);
+    const mime = sniffMime(bytes) ?? extMime(ext);
     doc.media.set(path, { mime, bytes, url: toDataUrl(bytes, mime) });
   }
   return doc;

@@ -240,3 +240,52 @@ export function elLabel(el: El): string {
   if (el.type === 'table') return `Table ${el.rows.length}×${el.rows[0]?.length ?? 0}`;
   return el.shape === 'rect' ? 'Rectangle' : el.shape === 'ellipse' ? 'Ellipse' : 'Line';
 }
+
+// ---------- Master / layout editing (propagates to slides that use the layout) ----------
+
+const sameRect = (a: Rect, b: Rect) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+
+/** Move/resize a layout placeholder; slide placeholders that were not moved by hand follow it. */
+export function setPlaceholderRect(d: DeckData, layoutId: LayoutId, role: PlaceholderRole, rect: Rect): void {
+  const p = layoutOf(d, layoutId).placeholders.find((x) => x.role === role);
+  if (!p) return;
+  const old = { ...p.rect };
+  p.rect = { ...rect };
+  for (const s of d.slides) {
+    if (s.layoutId !== layoutId) continue;
+    for (const e of s.elements) if (e.ph === role && sameRect(e, old)) Object.assign(e, rect);
+  }
+}
+
+export const PLACEHOLDER_ROLES: PlaceholderRole[] = ['kicker', 'title', 'body', 'body2', 'image'];
+
+export function addPlaceholder(d: DeckData, layoutId: LayoutId, role: PlaceholderRole): void {
+  const layout = layoutOf(d, layoutId);
+  if (layout.placeholders.some((p) => p.role === role)) return;
+  const def = defaultLayouts().flatMap((l) => l.placeholders).find((p) => p.role === role);
+  const ph: Placeholder = { role, rect: def ? { ...def.rect } : { x: M, y: 320, w: CW, h: 400 } };
+  if (role === 'image') layout.placeholders.unshift(ph); else layout.placeholders.push(ph);
+  for (const s of d.slides) {
+    if (s.layoutId !== layoutId || s.elements.some((e) => e.ph === role)) continue;
+    if (role === 'image') s.elements.unshift(placeholderEl(ph)); else s.elements.push(placeholderEl(ph));
+  }
+}
+
+export function removePlaceholder(d: DeckData, layoutId: LayoutId, role: PlaceholderRole): void {
+  const layout = layoutOf(d, layoutId);
+  layout.placeholders = layout.placeholders.filter((p) => p.role !== role);
+  for (const s of d.slides) {
+    if (s.layoutId !== layoutId) continue;
+    s.elements = s.elements.filter((e) => !(e.ph === role && isEmptyEl(e)));
+    for (const e of s.elements) if (e.ph === role) delete e.ph;
+  }
+}
+
+/** Restore a layout's default placeholders and re-flow its slides. */
+export function resetLayout(d: DeckData, layoutId: LayoutId): void {
+  const def = defaultLayouts().find((l) => l.id === layoutId);
+  const layout = layoutOf(d, layoutId);
+  if (!def) return;
+  layout.placeholders = def.placeholders;
+  for (const s of d.slides) if (s.layoutId === layoutId) applyLayout(d, s, layoutId);
+}

@@ -95,6 +95,8 @@ export interface EditorProps<M = unknown> {
   onChange: () => void;
   /** True when narrow (Android / small window) layout should be used. */
   compact: boolean;
+  /** Core services (dialogs, toasts, file pickers, opening docs, running commands). */
+  api: ModuleApi;
 }
 
 export interface ModuleDef<M = any> {
@@ -134,4 +136,6 @@ export interface ModuleApi {
   /** Open bytes in the module that handles `filename`'s extension, in a new tab, linked back to the current doc. */
   openBytesAsDoc: (bytes: Uint8Array, filename: string) => Promise<void>;
   runCommand: (id: string) => void;
+  /** Ask the chrome (status bar, menus) to re-read the model, e.g. after selection changes that aren't edits. */
+  refreshChrome: () => void;
 }

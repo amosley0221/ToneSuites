@@ -26,6 +26,7 @@ export interface SlideViewProps {
   onTextInput?: (el: TextEl, text: string) => void;
   onTextBlur?: (el: TextEl) => void;
   onCellInput?: (elId: string, r: number, c: number, text: string) => void;
+  onCellBlur?: () => void;
   editingCell?: { r: number; c: number } | null;
   style?: CSSProperties;
   children?: React.ReactNode;
@@ -115,9 +116,6 @@ function ElementView(props: { el: El; deck: DeckData; ink: string; p: SlideViewP
             onBlur={() => p.onTextBlur?.(el)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); }
-              // keep text-editing shortcuts native (don't let the app-level shortcut handler see them)
-              if ((e.ctrlKey || e.metaKey) && 'zyacvxbiu'.includes(e.key.toLowerCase())) e.stopPropagation();
-              if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
             }}
             style={{ ...ts, outline: 'none', minHeight: '100%', caretColor: deck.theme.accent, userSelect: 'text' }}
           />
@@ -182,7 +180,8 @@ function ElementView(props: { el: El; deck: DeckData; ink: string; p: SlideViewP
                       ? <div contentEditable={'plaintext-only' as unknown as boolean} suppressContentEditableWarning
                           ref={(n) => { if (n && n.dataset.init !== `${r}:${c}`) { n.dataset.init = `${r}:${c}`; n.innerText = cell; n.focus(); } }}
                           onInput={(e) => p.onCellInput?.(el.id, r, c, (e.currentTarget as HTMLElement).innerText.replace(/\n$/, ''))}
-                          onKeyDown={(e) => { if (!e.ctrlKey && !e.metaKey) e.stopPropagation(); if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); } }}
+                          onBlur={() => p.onCellBlur?.()}
+                          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); } }}
                           style={{ outline: 'none', minHeight: '1em', userSelect: 'text' }} />
                       : (cell || '​')}
                   </td>

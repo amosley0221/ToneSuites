@@ -50,7 +50,7 @@ function DocMeta({ doc }: { doc: Doc }) {
   useEffect(() => { const t = setInterval(() => force((x) => x + 1), 30_000); return () => clearInterval(t); }, []);
   const ws = doc.folderWorkspace;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, font: 'var(--type-mono)', color: 'var(--mute)', paddingRight: 4 }}>
+    <div className="docmeta" style={{ display: 'flex', alignItems: 'center', gap: 12, font: 'var(--type-mono)', color: 'var(--mute)', paddingRight: 4, whiteSpace: 'nowrap' }}>
       {ws && <FolderSwitcher doc={doc} />}
       {!ws && <span>{doc.dirty ? (doc.location ? 'Unsaved changes' : 'Not saved yet') : doc.savedAt ? `Saved · ${relTime(doc.savedAt)}` : doc.title}</span>}
     </div>

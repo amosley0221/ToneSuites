@@ -35,7 +35,7 @@ export function getImg(c: Cnv, r?: Rect): Img {
 }
 
 export function putImg(c: Cnv, img: Img, x = 0, y = 0) {
-  const id = img instanceof ImageData ? img : new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
+  const id = img instanceof ImageData ? img : new ImageData(img.data as Uint8ClampedArray<ArrayBuffer>, img.width, img.height);
   ctx2d(c).putImageData(id, x, y);
 }
 

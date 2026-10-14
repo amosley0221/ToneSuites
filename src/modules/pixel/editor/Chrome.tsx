@@ -24,7 +24,6 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
   const v = variantOf(t);
   const right = (
     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-      {onPanels && <Button onClick={onPanels}>Panels</Button>}
       <Button onClick={() => api.runCommand('pixel.edit.undo')} disabled={!doc.canUndo}>Undo</Button>
       <Button onClick={() => api.runCommand('pixel.edit.redo')} disabled={!doc.canRedo}>Redo</Button>
       {!compact && <DropMenu label="Import ▾" align="right" items={[
@@ -158,6 +157,7 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
   }
   return (
     <div className="toolbar" style={{ gap: 18, padding: '0 12px' }}>
+      {onPanels && <Button onClick={onPanels}>Panels</Button>}
       <Name>{v.name}</Name>
       <div style={fieldGap}>{fields}</div>
       <div style={{ flex: 1 }} />
@@ -183,7 +183,7 @@ export function ToolRail({ doc, compact }: { doc: PixelDoc; compact: boolean }) 
     setFlyout({ g, top: compact ? -8 : r.top - rr.top, left: compact ? r.left - rr.left : 52 });
   };
   return (
-    <div ref={ref} className="toolrail" style={{ width: 52, borderRight: '1px solid var(--line)', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '6px 0', position: 'relative', zIndex: 4, flexShrink: 0, overflowY: compact ? undefined : 'auto' }}>
+    <div ref={ref} className="toolrail" style={{ width: 52, borderRight: '1px solid var(--line)', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: compact ? '0 6px' : '6px 0', position: compact ? undefined : 'relative', zIndex: compact ? undefined : 4, flexShrink: 0, overflowY: compact ? undefined : 'auto' }}>
       {TOOL_GROUPS.map((g) => {
         const on = g === current;
         const tool = on ? ui.tool : ui.groupVariant[g.id] ?? defaultVariant(g);

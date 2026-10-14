@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { composite } from '../engine/composite';
 import type { PixelDoc } from '../engine/doc';
 import { maskBounds, maskOutline, type Mask } from '../engine/mask';
-import { contentBounds } from '../engine/canvas';
 import { rerender, textBox, fontString } from '../engine/render';
 import type { ToolController, PointerInfo } from './controller';
 
@@ -48,7 +47,6 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
   const fitted = useRef(false);
   const [, setTick] = useState(0);
 
-  const ui = doc.ui;
 
   // ---------- drawing ----------
   const colors = () => {
@@ -399,7 +397,7 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
   }, [doc]);
 
   // ---------- input ----------
-  const info = (e: React.PointerEvent | PointerEvent | MouseEvent): PointerInfo => {
+  const info = (e: React.PointerEvent | React.MouseEvent | PointerEvent | MouseEvent): PointerInfo => {
     const r = over.current!.getBoundingClientRect();
     const sx = e.clientX - r.left, sy = e.clientY - r.top;
     const { zoom, panX, panY, flipView } = doc.ui;
@@ -503,7 +501,7 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
   // ---------- inline type editing ----------
   const tl = textEdit ? doc.layer(textEdit.id) : undefined;
   const ta = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { if (textEdit) setTimeout(() => ta.current?.focus(), 0); }, [textEdit]);
+  useEffect(() => { if (!textEdit) return; const t = setTimeout(() => ta.current?.focus(), 0); return () => clearTimeout(t); }, [textEdit]);
   let taStyle: React.CSSProperties | null = null;
   if (tl?.text) {
     const b = textBox(tl);
@@ -574,10 +572,3 @@ function drawBox(x: CanvasRenderingContext2D, rx: number, ry: number, rw: number
   }
 }
 
-/** Visible bounds of the active layer (for status/properties). */
-export function activeBounds(doc: PixelDoc) {
-  const l = doc.active;
-  if (!l?.canvas) return null;
-  const b = contentBounds(l.canvas);
-  return b ? { x: l.x + b.x, y: l.y + b.y, w: b.w, h: b.h } : null;
-}

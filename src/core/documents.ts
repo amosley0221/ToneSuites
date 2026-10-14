@@ -34,7 +34,8 @@ export async function newDocument(mode: Mode) {
   const mod = await loadModule(mode);
   const res = await mod.createBlank();
   if (!res) return;
-  openModel(mode, res.model, res.title, null, 'tone');
+  // Unsaved documents show a bare name in the tab; the extension is added on first save.
+  openModel(mode, res.model, res.title.replace(/\.tone$/i, ''), null, 'tone');
 }
 
 export function openModel(mode: Mode, model: unknown, title: string, location: DocLocation | null, format: string, convertedFrom?: string, folderWorkspace?: Doc['folderWorkspace']) {

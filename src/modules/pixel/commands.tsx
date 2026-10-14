@@ -1,14 +1,15 @@
 // Menu command handlers for Pixel.
 import type { ReactNode } from 'react';
 import type { CommandHandler, ModuleApi } from '@/core/types';
-import { ADJUST_NAMES, autoColor, autoContrast, autoTone, equalize, type AdjustType } from './engine/adjust';
+import { activeDoc } from '@/core/store';
+import { autoColor, autoContrast, autoTone, equalize, type AdjustType } from './engine/adjust';
 import { canvasToBytes } from './engine/canvas';
 import type { PixelDoc } from './engine/doc';
 import { FILTERS, defaultParams, filterById } from './engine/filters';
 import { flatBytes } from './engine/io';
 import * as ops from './engine/ops';
 import { UserError } from './engine/ops';
-import { maskBounds } from './engine/mask';
+import { growMask, maskBounds, similarMask } from './engine/mask';
 import { contentBounds } from './engine/canvas';
 import { rerender } from './engine/render';
 import { AdjustDialog } from './dialogs/AdjustDialog';
@@ -58,8 +59,8 @@ export function commands(getModel: () => PixelDoc | undefined, api: ModuleApi): 
   });
   edit('pixel.file.quickPng', async (doc) => {
     pre(doc);
-    const name = (api as any).docTitle?.() ?? 'image';
-    await api.saveBytes(await flatBytes(doc, 'png'), `${String(name).replace(/\.[^.]+$/, '')}.png`, ['png']);
+    const name = activeDoc()?.title ?? 'image';
+    await api.saveBytes(await flatBytes(doc, 'png'), `${name.replace(/\.[^.]+$/, '')}.png`, ['png']);
   });
 
   // ---------- Edit ----------
@@ -263,13 +264,11 @@ export function commands(getModel: () => PixelDoc | undefined, api: ModuleApi): 
   modify('pixel.select.smooth', 'smooth', 'Smooth selection', 'Sample radius', 4);
   edit('pixel.select.grow', (doc) => {
     if (!doc.selection) throw new UserError('Make a selection first');
-    const { growMask } = require_mask();
     doc.setSelection(growMask(ops.sampleImage(doc, doc.ui.wand.sampleAll), doc.selection, doc.ui.wand.tolerance));
     doc.commit('Grow');
   });
   edit('pixel.select.similar', (doc) => {
     if (!doc.selection) throw new UserError('Make a selection first');
-    const { similarMask } = require_mask();
     doc.setSelection(similarMask(ops.sampleImage(doc, doc.ui.wand.sampleAll), doc.selection, doc.ui.wand.tolerance));
     doc.commit('Similar');
   });
@@ -359,9 +358,6 @@ export function commands(getModel: () => PixelDoc | undefined, api: ModuleApi): 
   return h;
 }
 
-// mask helpers are imported lazily to keep this module light
-import * as maskOps from './engine/mask';
-const require_mask = () => maskOps;
 
 async function toSystemClipboard(c: HTMLCanvasElement) {
   try {
@@ -370,5 +366,3 @@ async function toSystemClipboard(c: HTMLCanvasElement) {
     if (Item && navigator.clipboard?.write) await navigator.clipboard.write([new Item({ 'image/png': new Blob([bytes as BlobPart], { type: 'image/png' }) })]);
   } catch { /* internal clipboard still holds it */ }
 }
-
-export const ADJUST_TITLES = ADJUST_NAMES;

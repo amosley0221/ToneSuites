@@ -33,7 +33,7 @@ export function LayerPropsDialog({ doc, layer, onClose }: { doc: PixelDoc; layer
   };
   const toggle = () => { if (!layer.mask) return; layer.mask = { ...layer.mask, enabled: !layer.mask.enabled }; doc.repaint(); force((n) => n + 1); };
   const applyToPixels = () => {
-    try { layer.name = name; applyMask(doc); onClose(); } catch (e) { doc.repaint(); alert((e as Error).message); }
+    try { layer.name = name; applyMask(doc); onClose(); } catch { doc.repaint(); }
   };
   return (
     <Dialog title="Layer properties" subtitle={layer.name} width={760} height={460} onClose={cancel}>

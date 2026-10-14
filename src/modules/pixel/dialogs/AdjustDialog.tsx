@@ -5,7 +5,7 @@ import { composite } from '../engine/composite';
 import { getImg, maskToCanvas } from '../engine/canvas';
 import type { Layer, PixelDoc } from '../engine/doc';
 import { histogram } from '../engine/img';
-import { addAdjustmentLayer, applyAdjustDestructive, clearPreview, previewPixels, requirePixelLayer } from '../engine/ops';
+import { addAdjustmentLayer, applyAdjustDestructive, clearPreview, previewPixels } from '../engine/ops';
 import { Check, ColorSwatch, Label } from '../editor/ui';
 
 type Mode = 'pixels' | 'newLayer' | 'editLayer';
@@ -248,6 +248,3 @@ function Curves({ doc, spec, set }: { doc: PixelDoc; spec: Extract<AdjustSpec, {
     </div>
   );
 }
-
-/** Guard used by commands before opening a destructive adjustment. */
-export function ensurePixels(doc: PixelDoc) { requirePixelLayer(doc); }

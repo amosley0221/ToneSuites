@@ -1,7 +1,7 @@
 // Layer-stack compositing (Canvas2D). Groups render isolated; adjustment layers run on the CPU.
 import { applyAdjust } from './adjust';
 import { compositeOp } from './blend';
-import { clearCanvas, ctx2d, newCanvas, type Cnv } from './canvas';
+import { clearCanvas, ctx2d, newCanvas, putImg, type Cnv } from './canvas';
 import { hasStyles, type Layer, type LayerStyles, type PixelDoc } from './doc';
 
 const caches = new WeakMap<PixelDoc, { rev: number; w: number; h: number; canvas: Cnv }>();
@@ -79,7 +79,7 @@ function drawLayer(doc: PixelDoc, l: Layer, ctx: CanvasRenderingContext2D, depth
     if (!spec) return;
     const t = pool(doc, base);
     const below = ctx.getImageData(0, 0, doc.width, doc.height);
-    ctx2d(t).putImageData(applyAdjust(below, spec) as ImageData, 0, 0);
+    putImg(t, applyAdjust(below, spec));
     finish(doc, l, ctx, t, mask, base);
     return;
   }

@@ -14,7 +14,7 @@ export function runFilter(doc: PixelDoc, f: FilterDef, params: Record<string, nu
 }
 
 /** How far outside the selection a filter reads pixels. */
-function margin(f: FilterDef, p: Record<string, number>) {
+function margin(_f: FilterDef, p: Record<string, number>) {
   return Math.ceil(Math.max(8, (p.radius ?? 0) * 3, p.distance ?? 0, p.cell ?? 0, p.shift ?? 0, (p.height ?? 0) * 2));
 }
 

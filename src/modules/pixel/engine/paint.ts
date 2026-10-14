@@ -1,5 +1,5 @@
 // Brush engine: stroke buffer (coverage) for brush/pencil/eraser/clone/history, and per-dab retouch tools.
-import { clearCanvas, cloneCanvas, ctx2d, newCanvas, type Cnv } from './canvas';
+import { clearCanvas, ctx2d, newCanvas, type Cnv } from './canvas';
 import type { Layer, PixelDoc } from './doc';
 import { clamp, hslToRgb, luma, rgbToHsl } from './img';
 
@@ -265,6 +265,3 @@ export class RetouchStroke {
   private carryW = 0;
   private carryH = 0;
 }
-
-/** Snapshot helper for clone sources. */
-export const snapshotCanvas = (c: Cnv) => cloneCanvas(c);

@@ -39,11 +39,11 @@ export function PropertiesPanel({ doc, api, toast }: { doc: PixelDoc; api: Modul
         <div>
           <Label>Transform · {l.name}</Label>
           <div style={grid2}>
-            <NumField label="W" unit="px" value={rect.w} min={1} width={80} onChange={(w) => transform((p, bw) => { p.sx = w / bw; })} />
-            <NumField label="H" unit="px" value={rect.h} min={1} width={80} onChange={(h) => transform((p, _bw, bh) => { p.sy = h / bh; })} />
-            <NumField label="X" unit="px" value={rect.x} width={80} onChange={(x) => move(x - rect.x, 0)} />
-            <NumField label="Y" unit="px" value={rect.y} width={80} onChange={(y) => move(0, y - rect.y)} />
-            <NumField label="∠" unit="°" value={0} step={0.1} width={80} onChange={(a) => { if (a) transform((p) => { p.angle = (a * Math.PI) / 180; }); }} />
+            <NumField label="W" unit="px" value={rect.w} min={1} width={56} onChange={(w) => transform((p, bw) => { p.sx = w / bw; })} />
+            <NumField label="H" unit="px" value={rect.h} min={1} width={56} onChange={(h) => transform((p, _bw, bh) => { p.sy = h / bh; })} />
+            <NumField label="X" unit="px" value={rect.x} width={56} onChange={(x) => move(x - rect.x, 0)} />
+            <NumField label="Y" unit="px" value={rect.y} width={56} onChange={(y) => move(0, y - rect.y)} />
+            <NumField label="∠" unit="°" value={0} step={0.1} width={56} onChange={(a) => { if (a) transform((p) => { p.angle = (a * Math.PI) / 180; }); }} />
             <Chip onClick={() => api.runCommand('pixel.edit.freeTransform')} style={{ color: 'var(--accent)', textAlign: 'left' }}>Free transform</Chip>
           </div>
         </div>

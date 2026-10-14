@@ -35,7 +35,7 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
   return {
     kind: 'desktop',
     version: u.version,
-    notes: u.body ?? '',
+    notes: u.body?.trim() || (await releaseNotes(u.version)),
     date: u.date,
     install: async (onProgress) => {
       let total = 0, got = 0;
@@ -46,6 +46,14 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
       await relaunch();
     },
   };
+}
+
+/** Update notes from the GitHub Release page (fallback when the manifest has none). */
+async function releaseNotes(version: string): Promise<string> {
+  try {
+    const r = await httpFetch(`https://api.github.com/repos/${RELEASE_REPO}/releases/tags/v${version.replace(/^v/, '')}`, { headers: { Accept: 'application/vnd.github+json' } });
+    return r.ok ? String((await r.json()).body ?? '') : '';
+  } catch { return ''; }
 }
 
 async function checkAndroid(): Promise<AvailableUpdate | null> {

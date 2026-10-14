@@ -6,6 +6,9 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### Fixed
+- Update prompts on Windows and macOS always show the update notes.
+
 ## [0.1.0] - 2026-10-14
 
 ### New

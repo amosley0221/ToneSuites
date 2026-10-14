@@ -90,6 +90,14 @@ jobs:
         with:
           workspaces: src-tauri -> target
       - run: npm ci
+      - name: Update notes for the updater manifest (latest.json)
+        shell: bash
+        run: |
+          {
+            echo 'NOTES<<TONE_NOTES_EOF'
+            node scripts/changelog-section.mjs "${{ needs.create-release.outputs.version }}"
+            echo 'TONE_NOTES_EOF'
+          } >> "$GITHUB_ENV"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -98,6 +106,7 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+          releaseBody: ${{ env.NOTES }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
 

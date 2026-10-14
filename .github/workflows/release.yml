@@ -56,6 +56,8 @@ jobs:
             gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Tone Suites $TAG" --notes-file notes.md
             ID=$(find_id)
           fi
+          if [ -z "$ID" ]; then echo "::error::Could not find the draft release for $TAG"; exit 1; fi
+          echo "::notice::Release $TAG id=$ID"
           echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   desktop:
@@ -158,9 +160,10 @@ jobs:
           R="${{ github.repository }}"
           OLD=$(gh api "repos/$R/releases/$RID/assets" --jq '.[] | select(.name=="'"$APK"'") | .id')
           if [ -n "$OLD" ]; then gh api -X DELETE "repos/$R/releases/assets/$OLD"; fi
-          curl -sSf -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/vnd.android.package-archive" \
-            --data-binary @"$APK" "https://uploads.github.com/repos/$R/releases/$RID/assets?name=$APK" > /dev/null
-          echo "Uploaded $APK"
+          CODE=$(curl -sS -o resp.json -w '%{http_code}' -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Content-Type: application/vnd.android.package-archive" \
+            --data-binary @"$APK" "https://uploads.github.com/repos/$R/releases/$RID/assets?name=$APK")
+          if [ "$CODE" != "201" ]; then echo "::error::APK upload to release '$RID' failed ($CODE): $(head -c 300 resp.json)"; exit 1; fi
+          echo "::notice::Uploaded $APK"
 
   publish:
     needs: [create-release, desktop, android]

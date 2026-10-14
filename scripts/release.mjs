@@ -28,7 +28,7 @@ if (!hasSection) {
     process.exit(1);
   }
   const date = new Date().toISOString().slice(0, 10);
-  changelog = changelog.replace(/^## \[Unreleased\]\s*\n/m, `## [Unreleased]\n\n## [${next}] - ${date}\n`);
+  changelog = changelog.replace(/^## \[Unreleased\]\s*\n/m, `## [Unreleased]\n\n## [${next}] - ${date}\n\n`);
   write('CHANGELOG.md', changelog);
 }
 

@@ -5,6 +5,7 @@ import { ACCENTS, useSettings, type ProviderConfig } from '@/core/settings';
 import { useApp } from '@/core/store';
 import type { Mode, ModuleDef } from '@/core/types';
 import { connectGoogleDrive } from '@/storage/gdrive';
+import { webdavBrowseUrl } from '@/storage/webdav';
 import { makeProvider, requestSync } from '@/storage/sync';
 import { loadModule, MODULE_META } from '@/modules/meta';
 import { Badge, Button, Dialog, DialogNav, Eyebrow, FormRow, Input, Segmented, Select, Switch } from '@/ui';
@@ -214,13 +215,16 @@ function WebDavForm({ existing, onDone, onRemove }: { existing?: ProviderConfig;
   return (
     <div style={{ border: '1px solid var(--line)', padding: 14, marginBottom: 10, background: 'var(--bg0)' }}>
       <FormRow label="Name"><Input value={cfg.name} placeholder="e.g. Home NAS" onChange={(v) => setCfg({ ...cfg, name: v })} style={{ width: 300 }} /></FormRow>
-      <FormRow label="WebDAV address (folder)"><Input mono value={cfg.url ?? ''} placeholder="http://<nas-ip>:<port>/<share>/Tone" onChange={(v) => setCfg({ ...cfg, url: v.trim() })} style={{ width: 300 }} /></FormRow>
+      <FormRow label="Sync folder (WebDAV address)"><Input mono value={cfg.url ?? ''} placeholder="http://<nas-ip>:<port>/<share>/Tone" onChange={(v) => setCfg({ ...cfg, url: v.trim() })} style={{ width: 300 }} /></FormRow>
+      <FormRow label="Browse from (Open from NAS)"><Input mono value={cfg.browseUrl ?? ''} placeholder={webdavBrowseUrl({ ...cfg, browseUrl: '' }) || 'http://<nas-ip>:<port>'} onChange={(v) => setCfg({ ...cfg, browseUrl: v.trim() })} style={{ width: 300 }} /></FormRow>
       <FormRow label="Username"><Input value={cfg.username ?? ''} onChange={(v) => setCfg({ ...cfg, username: v })} style={{ width: 300 }} /></FormRow>
       <FormRow label="Password (stays on this device)"><Input type="password" value={pw} onChange={setPw} style={{ width: 300 }} /></FormRow>
       <FormRow label="Sync my workspace with this NAS"><Switch on={cfg.sync} onChange={(v) => setCfg({ ...cfg, sync: v })} /></FormRow>
       <FormRow label="Enabled"><Switch on={cfg.enabled} onChange={(v) => setCfg({ ...cfg, enabled: v })} /></FormRow>
       <div style={{ font: 'var(--type-small)', color: 'var(--mute)', margin: '6px 0 10px' }}>
-        UGREEN NAS: turn on WebDAV in UGOS Pro (Control Panel › File Services › WebDAV), then use <span className="mono">http://&lt;NAS IP&gt;:&lt;port&gt;/&lt;shared folder&gt;/Tone</span>.
+        UGREEN NAS: turn on WebDAV in UGOS Pro (Control Panel › File Services › WebDAV). The sync folder is where Tone keeps your
+        documents in step across devices, e.g. <span className="mono">http://&lt;NAS IP&gt;:&lt;port&gt;/&lt;shared folder&gt;/Tone</span>.
+        File › Open from NAS browses every shared folder your account can reach, starting at "Browse from" (the NAS root unless you change it).
         Away from home, use the NAS's Tailscale address. See docs/SETUP.md.
       </div>
       {msg && <div style={{ font: 'var(--type-mono)', color: msg.ok ? 'var(--positive)' : 'var(--negative)', marginBottom: 8 }}>{msg.text}</div>}

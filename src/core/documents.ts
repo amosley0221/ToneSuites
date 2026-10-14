@@ -98,13 +98,17 @@ export async function openPath(path: string, folderWorkspace?: Doc['folderWorksp
   }
 }
 
-export async function openFromProvider(providerId: string, rel: string, browseWholeDrive = false) {
+// Files opened from the whole NAS / Drive (not the sync folder) are stored with this path prefix.
+const ROOT = '@root/';
+const fromRoot = (path: string) => (path.startsWith(ROOT) ? path.slice(ROOT.length) : path.startsWith('@drive/') ? path.slice(7) : null);
+
+export async function openFromProvider(providerId: string, rel: string, browseRoot = false) {
   const cfg = useSettings.getState().s.providers.find((p) => p.id === providerId);
   if (!cfg) return;
   try {
-    const p = makeProvider(cfg, browseWholeDrive);
+    const p = makeProvider(cfg, browseRoot);
     const bytes = await p.get(rel);
-    return await openBytes(bytes, basename(rel), { kind: 'provider', providerId, path: (browseWholeDrive ? '@drive/' : '') + rel });
+    return await openBytes(bytes, basename(rel), { kind: 'provider', providerId, path: (browseRoot ? ROOT : '') + rel });
   } catch (e: any) {
     toast(`Couldn't open ${basename(rel)}: ${e?.message ?? e}`, 'error');
   }
@@ -112,8 +116,8 @@ export async function openFromProvider(providerId: string, rel: string, browseWh
 
 export async function openRecent(r: RecentEntry) {
   if (r.location.kind === 'local') return openPath(r.location.path);
-  const whole = r.location.path.startsWith('@drive/');
-  return openFromProvider(r.location.providerId!, whole ? r.location.path.slice(7) : r.location.path, whole);
+  const rootRel = fromRoot(r.location.path);
+  return openFromProvider(r.location.providerId!, rootRel ?? r.location.path, rootRel != null);
 }
 
 export async function openDialog() {
@@ -215,8 +219,8 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
     else {
       const cfg = useSettings.getState().s.providers.find((p) => p.id === location!.providerId);
       if (!cfg) throw new Error('Storage provider was removed');
-      const whole = location.path.startsWith('@drive/');
-      await makeProvider(cfg, whole).put(whole ? location.path.slice(7) : location.path, bytes);
+      const rootRel = fromRoot(location.path);
+      await makeProvider(cfg, rootRel != null).put(rootRel ?? location.path, bytes);
     }
     if (!opts.copy) {
       const title = basename(location.path);

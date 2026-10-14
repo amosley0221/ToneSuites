@@ -76,6 +76,13 @@ Android without mounting drives.
    - **Test connection**, then **Save**.
 4. Repeat on each device (same address and folder). Devices then show up on Home.
 
+**Sync folder vs. the rest of your NAS.** Only the sync folder (`…/Tone`) is kept in step across
+devices automatically. You can still open and save files in *any* shared folder: **File → Open from
+NAS / Google Drive** starts at the NAS root and lists every shared folder your account can access.
+Saving a file opened that way writes it straight back to the NAS. To see a shared folder there, give
+your Tone user read/write access to it in UGOS Pro (**Control Panel → Shared Folder → Permissions**).
+If your NAS serves WebDAV under a path, set **Browse from** in the NAS settings, e.g. `http://192.168.1.50:5005`.
+
 **If your DH2300's UGOS Pro has no WebDAV option**, use your always-on Plex PC as the bridge:
 map the NAS share on that PC and serve it over WebDAV, e.g. with rclone:
 `rclone serve webdav "\\NAS\Documents\Tone" --addr :8080 --user <user> --pass <pass>` (run it as a

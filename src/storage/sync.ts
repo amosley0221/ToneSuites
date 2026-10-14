@@ -15,10 +15,11 @@ const META_DIR = '.tone-sync';
 interface IndexEntry { hash: string; rev: string; size: number; mtime: number }
 interface SyncIndex { files: Record<string, IndexEntry> }
 
-export function makeProvider(cfg: ProviderConfig, browseWholeDrive = false): StorageProvider {
+/** @param browseRoot whole NAS / whole My Drive (for opening files) instead of the sync folder */
+export function makeProvider(cfg: ProviderConfig, browseRoot = false): StorageProvider {
   const sec = useSettings.getState().secrets[cfg.id] ?? {};
-  if (cfg.kind === 'webdav') return new WebDavProvider(cfg, sec.password ?? '');
-  return new GDriveProvider(cfg, browseWholeDrive ? null : cfg.url || 'Tone');
+  if (cfg.kind === 'webdav') return new WebDavProvider(cfg, sec.password ?? '', browseRoot);
+  return new GDriveProvider(cfg, browseRoot ? null : cfg.url || 'Tone');
 }
 
 async function indexPath(id: string) { return joinPath(await appDataDir(), `sync-index-${id}.json`); }

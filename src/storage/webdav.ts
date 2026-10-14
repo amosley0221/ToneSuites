@@ -7,11 +7,18 @@ function b64(s: string) {
   return btoa(unescape(encodeURIComponent(s)));
 }
 
+/** Where "Open from NAS" starts: the user's browse address, or the server root of the sync address. */
+export function webdavBrowseUrl(cfg: ProviderConfig): string {
+  if (cfg.browseUrl?.trim()) return cfg.browseUrl.trim();
+  try { return new URL(cfg.url ?? '').origin; } catch { return cfg.url ?? ''; }
+}
+
 export class WebDavProvider implements StorageProvider {
-  constructor(public config: ProviderConfig, private password: string) {}
+  /** @param browseRoot list from the browse address (whole NAS) instead of the sync folder */
+  constructor(public config: ProviderConfig, private password: string, private browseRoot = false) {}
 
   private base(): string {
-    return (this.config.url ?? '').replace(/\/+$/, '');
+    return (this.browseRoot ? webdavBrowseUrl(this.config) : this.config.url ?? '').replace(/\/+$/, '');
   }
   private urlFor(rel: string, dir = false): string {
     const enc = rel.split('/').filter(Boolean).map(encodeURIComponent).join('/');

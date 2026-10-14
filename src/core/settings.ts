@@ -14,6 +14,8 @@ export interface ProviderConfig {
   enabled: boolean;
   /** webdav: base URL incl. folder (e.g. http://100.x.y.z:5005/Tone); gdrive: name of the root folder in My Drive */
   url?: string;
+  /** webdav: where browsing starts (default: server root of `url`, i.e. every shared folder) */
+  browseUrl?: string;
   username?: string;
   /** gdrive: OAuth client id / secret (Desktop app type) entered by the user */
   clientId?: string;

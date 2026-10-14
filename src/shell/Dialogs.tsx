@@ -60,24 +60,23 @@ export function ProviderBrowser({ close }: { close: () => void }) {
   const [entries, setEntries] = useState<RemoteEntry[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const cfg = providers.find((p) => p.id === pid);
-  const wholeDrive = cfg?.kind === 'gdrive';
   useEffect(() => {
     if (!cfg) return;
     setEntries(null); setErr(null);
-    makeProvider(cfg, wholeDrive).list(path)
+    makeProvider(cfg, true).list(path) // whole NAS / My Drive, not just the synced folder
       .then((e) => setEntries(e.sort((a, b) => Number(b.isDir) - Number(a.isDir) || a.rel.localeCompare(b.rel))))
       .catch((e) => setErr(String(e?.message ?? e)));
   }, [pid, path]);
   const crumbs = path ? path.split('/') : [];
   return (
-    <Dialog title="Open from storage" subtitle={cfg ? makeProvider(cfg, wholeDrive).label() : ''} width={900} height={600} onClose={close}>
+    <Dialog title="Open from storage" subtitle={cfg ? makeProvider(cfg, true).label() : ''} width={900} height={600} onClose={close}>
       {providers.length === 0 ? (
         <div className="empty-hint" style={{ padding: 18 }}>No storage connected. Add your NAS or Google Drive in Settings › Sync.</div>
       ) : <>
         <DialogNav items={providers.map((p) => ({ value: p.id, label: p.name, hint: p.kind === 'gdrive' ? 'Drive' : 'NAS' }))} value={pid} onChange={(v) => { setPid(v); setPath(''); }} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid var(--line)', font: 'var(--type-mono)', flexWrap: 'wrap' }}>
-            <span className="hov-ink" style={{ cursor: 'pointer', color: 'var(--mute)' }} onClick={() => setPath('')}>{wholeDrive ? 'My Drive' : 'root'}</span>
+            <span className="hov-ink" style={{ cursor: 'pointer', color: 'var(--mute)' }} onClick={() => setPath('')}>{cfg?.kind === 'gdrive' ? 'My Drive' : cfg?.name ?? 'NAS'}</span>
             {crumbs.map((c, i) => <span key={i}> / <span className="hov-ink" style={{ cursor: 'pointer', color: i === crumbs.length - 1 ? 'var(--ink)' : 'var(--mute)' }} onClick={() => setPath(crumbs.slice(0, i + 1).join('/'))}>{c}</span></span>)}
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -88,7 +87,7 @@ export function ProviderBrowser({ close }: { close: () => void }) {
               const name = e.rel.split('/').pop()!;
               const ok = e.isDir || ALL_OPENABLE.includes(extOf(name));
               return (
-                <div key={e.rel} className={ok ? 'hov-row' : ''} onClick={() => { if (e.isDir) setPath(e.rel); else if (ok) { close(); void openFromProvider(pid, e.rel, wholeDrive); } }}
+                <div key={e.rel} className={ok ? 'hov-row' : ''} onClick={() => { if (e.isDir) setPath(e.rel); else if (ok) { close(); void openFromProvider(pid, e.rel, true); } }}
                   style={{ display: 'grid', gridTemplateColumns: '24px 1fr 90px 90px', gap: 10, alignItems: 'center', padding: '8px 16px', borderBottom: '1px solid var(--line)', cursor: ok ? 'pointer' : 'default', opacity: ok ? 1 : 0.45 }}>
                   <span style={{ font: 'var(--type-mono)', color: 'var(--mute)' }}>{e.isDir ? '▸' : '·'}</span>
                   <span style={{ fontWeight: e.isDir ? 700 : 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>

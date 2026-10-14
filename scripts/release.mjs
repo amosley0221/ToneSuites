@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Cut a release: move "## [Unreleased]" notes under the new version, bump versions, commit and tag.
+// Cut a release: move "## [Unreleased]" notes under the new version, bump versions and commit.
 // Usage: node scripts/release.mjs <patch|minor|major|x.y.z> [--push]
-// Pushing the tag (vX.Y.Z) triggers .github/workflows/release.yml, which builds Windows, macOS and
-// Android, attaches the update notes, and publishes the GitHub Release (Vault + desktop updater read it).
+// Pushing the version bump to main triggers .github/workflows/release.yml, which builds Windows,
+// macOS and Android, attaches the update notes, creates the vX.Y.Z tag and publishes the GitHub
+// Release (Vault + the desktop updater read it).
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -41,6 +42,5 @@ write('src-tauri/Cargo.toml', read('src-tauri/Cargo.toml').replace(/^version = "
 
 sh('git add CHANGELOG.md package.json package-lock.json src-tauri/Cargo.toml');
 sh(`git commit -m "Release v${next}"`);
-sh(`git tag -a v${next} -m "Tone Suites v${next}"`);
-if (process.argv.includes('--push')) sh(`git push origin HEAD v${next}`);
-else console.log(`\nTagged v${next}. Push with: git push origin HEAD v${next}`);
+if (process.argv.includes('--push')) sh('git push origin HEAD:main');
+else console.log(`\nCommitted v${next}. Push to main to build and publish it: git push origin HEAD:main`);

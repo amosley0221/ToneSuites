@@ -1,27 +1,23 @@
 # Builds Tone Suites for Windows, macOS and Android and publishes a GitHub Release.
-# Trigger: push a tag vX.Y.Z (scripts/release.mjs does this) — or run manually with a tag.
-# The release notes come from CHANGELOG.md. Desktop apps update in place from latest.json;
-# the signed APK installs over the previous version (same package id + same signing key).
+# Trigger: a push to main that changes the version in package.json (scripts/release.mjs does this),
+# or "Run workflow" by hand. If release vX.Y.Z is already published, nothing happens.
+# The workflow creates the vX.Y.Z tag itself when it publishes. Release notes come from CHANGELOG.md.
+# Desktop apps update in place from latest.json; the signed APK installs over the previous version
+# (same package id + same signing key).
 name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+    paths: ['package.json', '.github/workflows/release.yml']
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Existing tag to build (e.g. v0.1.0)'
-        required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
-
-env:
-  TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   create-release:
@@ -29,31 +25,42 @@ jobs:
     outputs:
       release_id: ${{ steps.rel.outputs.id }}
       version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      skip: ${{ steps.ver.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
       - id: ver
-        run: |
-          V="${TAG#v}"
-          PKG=$(node -p "require('./package.json').version")
-          if [ "$V" != "$PKG" ]; then echo "Tag $TAG does not match package.json version $PKG"; exit 1; fi
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-      - name: Update notes from CHANGELOG.md
-        run: node scripts/changelog-section.mjs "${{ steps.ver.outputs.version }}" > notes.md
-      - id: rel
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --draft --notes-file notes.md
+          V=$(node -p "require('./package.json').version")
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V" >> "$GITHUB_OUTPUT"
+          # List-based lookup: the by-tag API doesn't return draft releases.
+          DRAFT=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.tag_name=="v'"$V"'")][0].draft // "none"')
+          if [ "$DRAFT" = "false" ]; then echo "v$V is already released — nothing to do."; echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Update notes from CHANGELOG.md
+        if: steps.ver.outputs.skip != 'true'
+        run: node scripts/changelog-section.mjs "${{ steps.ver.outputs.version }}" > notes.md
+      - id: rel
+        if: steps.ver.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          find_id() { gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.tag_name=="'"$TAG"'")][0].id // empty'; }
+          ID=$(find_id)
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/releases/$ID" -f target_commitish="$GITHUB_SHA" -F body=@notes.md >/dev/null
           else
-            gh release create "$TAG" --draft --title "Tone Suites $TAG" --notes-file notes.md --verify-tag
+            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Tone Suites $TAG" --notes-file notes.md
+            ID=$(find_id)
           fi
-          echo "id=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name=="'"$TAG"'") | .id' | head -1)" >> "$GITHUB_OUTPUT"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   desktop:
     needs: create-release
+    if: needs.create-release.outputs.skip != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -65,8 +72,6 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -91,14 +96,14 @@ jobs:
 
   android:
     needs: create-release
+    if: needs.create-release.outputs.skip != 'true'
     runs-on: ubuntu-latest
     env:
+      TAG: ${{ needs.create-release.outputs.tag }}
       NDK_VERSION: 27.2.12479018
       BUILD_TOOLS: 35.0.0
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -149,9 +154,11 @@ jobs:
 
   publish:
     needs: [create-release, desktop, android]
+    if: needs.create-release.outputs.skip != 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Publish release
+      - name: Publish release (creates the vX.Y.Z tag)
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.create-release.outputs.tag }}
         run: gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest

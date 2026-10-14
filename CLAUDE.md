@@ -11,8 +11,8 @@ no hard-coded data, blank new documents, in-place updates, convert stays in-app,
 - `npm run typecheck && npm test && npx vite build` must pass.
 
 ## Releasing
-`npm run release -- patch|minor|major --push` (see docs/SETUP.md). The tag triggers
-`.github/workflows/release.yml`. Never change `identifier` in tauri.conf.json or the Android signing key,
+`npm run release -- patch|minor|major --push` (see docs/SETUP.md). Pushing the version bump to main
+triggers `.github/workflows/release.yml`, which creates the tag and publishes the release (no manual tag push needed). Never change `identifier` in tauri.conf.json or the Android signing key,
 or Android updates stop installing over the old app.
 
 ## Architecture

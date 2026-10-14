@@ -33,13 +33,16 @@ Every change adds notes under `## [Unreleased]` in `CHANGELOG.md`. To release:
 npm run release -- patch --push      # or minor / major / 1.4.0
 ```
 
-This moves the Unreleased notes under the new version, bumps the version everywhere, commits,
-tags `vX.Y.Z` and pushes. The **Release** workflow then:
+This moves the Unreleased notes under the new version, bumps the version everywhere, commits and
+pushes to `main`. A push that changes the version starts the **Release** workflow, which:
 
 1. creates a draft GitHub Release whose description is that version's CHANGELOG section,
 2. builds the Windows installer (NSIS) and macOS app (universal `.dmg` + updater bundle),
 3. builds and signs the Android APK (`ToneSuites-X.Y.Z.apk`),
-4. publishes the release (marked *latest*).
+4. publishes the release (marked *latest*) and creates the `vX.Y.Z` tag.
+
+You can also start it from **Actions → Release → Run workflow**. If that version is already
+released, it does nothing.
 
 Then:
 

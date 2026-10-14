@@ -36,8 +36,9 @@ jobs:
           V=$(node -p "require('./package.json').version")
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
-          # Already published? (Published releases are found reliably by tag; drafts are not.)
-          if gh api "repos/${{ github.repository }}/releases/tags/v$V" --jq '.draft' >/dev/null 2>&1; then
+          # Already published? Only a non-draft release counts (drafts from earlier attempts get rebuilt).
+          DRAFT=$(gh api "repos/${{ github.repository }}/releases/tags/v$V" --jq '.draft' 2>/dev/null || echo none)
+          if [ "$DRAFT" = "false" ]; then
             echo "v$V is already released — nothing to do."; echo "skip=true" >> "$GITHUB_OUTPUT"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"

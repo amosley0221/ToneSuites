@@ -36,9 +36,12 @@ jobs:
           V=$(node -p "require('./package.json').version")
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
-          # List-based lookup: the by-tag API doesn't return draft releases.
-          DRAFT=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.tag_name=="v'"$V"'")][0].draft // "none"')
-          if [ "$DRAFT" = "false" ]; then echo "v$V is already released — nothing to do."; echo "skip=true" >> "$GITHUB_OUTPUT"; else echo "skip=false" >> "$GITHUB_OUTPUT"; fi
+          # Already published? (Published releases are found reliably by tag; drafts are not.)
+          if gh api "repos/${{ github.repository }}/releases/tags/v$V" --jq '.draft' >/dev/null 2>&1; then
+            echo "v$V is already released — nothing to do."; echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Update notes from CHANGELOG.md
         if: steps.ver.outputs.skip != 'true'
         run: node scripts/changelog-section.mjs "${{ steps.ver.outputs.version }}" > notes.md
@@ -48,16 +51,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.ver.outputs.tag }}
         run: |
-          find_id() { gh api "repos/${{ github.repository }}/releases?per_page=100" --jq '[.[] | select(.tag_name=="'"$TAG"'")][0].id // empty'; }
-          ID=$(find_id)
-          if [ -n "$ID" ]; then
-            gh api -X PATCH "repos/${{ github.repository }}/releases/$ID" -f target_commitish="$GITHUB_SHA" -F body=@notes.md >/dev/null
-          else
-            gh release create "$TAG" --draft --target "$GITHUB_SHA" --title "Tone Suites $TAG" --notes-file notes.md
-            ID=$(find_id)
-          fi
-          if [ -z "$ID" ]; then echo "::error::Could not find the draft release for $TAG"; exit 1; fi
-          echo "::notice::Release $TAG id=$ID"
+          R="${{ github.repository }}"
+          NAME="Tone Suites $TAG"
+          # Remove drafts left by earlier attempts at this version (matched by title: a draft's tag_name
+          # can read back as "untagged-…").
+          for OLD in $(gh api "repos/$R/releases?per_page=100" --jq '.[] | select(.draft and .name=="'"$NAME"'") | .id'); do
+            gh api -X DELETE "repos/$R/releases/$OLD"
+          done
+          ID=$(gh api -X POST "repos/$R/releases" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" -f name="$NAME" \
+            -F body=@notes.md -F draft=true --jq '.id')
+          if [ -z "$ID" ]; then echo "::error::Could not create the draft release for $TAG"; exit 1; fi
+          echo "::notice::Draft release $TAG id=$ID"
           echo "id=$ID" >> "$GITHUB_OUTPUT"
 
   desktop:

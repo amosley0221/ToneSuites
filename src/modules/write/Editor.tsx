@@ -21,7 +21,7 @@ import './write.css';
 
 const GAP = 24; // px between sheets
 
-export function WriteEditor({ doc, model, onChange, compact }: EditorProps<WriteModel>) {
+export function WriteEditor({ doc, model, onChange, compact, api }: EditorProps<WriteModel>) {
   useSyncExternalStore(model.subscribe, model.getVersion);
   const [panelsOpen, setPanelsOpen] = useState(false);
   const inspectorOpen = useApp((s) => s.inspectorOpen);
@@ -33,9 +33,9 @@ export function WriteEditor({ doc, model, onChange, compact }: EditorProps<Write
 
   return (
     <div className={compact ? 'compact' : undefined} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      {!ui.focus && <Toolbar model={model} compact={compact} onPanels={() => setPanelsOpen((v) => !v)} />}
+      {!ui.focus && <Toolbar model={model} api={api} compact={compact} onPanels={() => setPanelsOpen((v) => !v)} />}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative' }}>
-        <PageCanvas model={model} onChange={onChange} compact={compact} />
+        <PageCanvas model={model} onChange={onChange} compact={compact} refresh={api.refreshChrome} />
         {ui.find && <FindPanel model={model} onChange={onChange} />}
         {side === 'review' && <ReviewPane model={model} onChange={onChange} open={sheetOpen} />}
         {side === 'inspector' && <Inspector model={model} onChange={onChange} open={sheetOpen} />}
@@ -71,7 +71,9 @@ function sameSpacers(a: Spacer[], b: Spacer[]) {
   return a.length === b.length && a.every((s, i) => s.pos === b[i].pos && Math.abs(s.height - b[i].height) <= 1);
 }
 
-function PageCanvas({ model, onChange, compact }: { model: WriteModel; onChange: () => void; compact: boolean }) {
+function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; onChange: () => void; compact: boolean; refresh: () => void }) {
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
   const scrollRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -197,7 +199,7 @@ function PageCanvas({ model, onChange, compact }: { model: WriteModel; onChange:
     if (changed) {
       model.ui = { ...model.ui, pages, blockPages };
       model.emit();
-      useApp.getState().bump();
+      refreshRef.current();
     }
     if (refreshTocs(model)) onChangeRef.current();
   };
@@ -216,7 +218,7 @@ function PageCanvas({ model, onChange, compact }: { model: WriteModel; onChange:
       if (model.state.doc !== lastDoc || pg !== lastPage) { lastDoc = model.state.doc; lastPage = pg; schedule(); }
       const idx = model.state.selection.$head.index(0);
       const cp = model.ui.blockPages[idx] ?? 1;
-      if (cp !== lastCur) { lastCur = cp; model.ui.currentPage = cp; useApp.getState().bump(); }
+      if (cp !== lastCur) { lastCur = cp; model.ui.currentPage = cp; refreshRef.current(); }
     });
     const el = model.view?.dom;
     const onLoad = () => schedule();

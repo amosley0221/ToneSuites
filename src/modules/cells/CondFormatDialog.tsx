@@ -12,15 +12,7 @@ export function CondFormatDialog({ wb, onClose }: { wb: Workbook; onClose: () =>
   const [rules, setRules] = useState<CondRule[]>(() => s.condFormats.map((r) => ({ ...r, style: { ...r.style } })));
   const newRule = (): CondRule => ({ id: uid(), range: selRange, kind: 'gt', a: '0', style: { color: '#e5484d' } });
   const [cur, setCur] = useState<string | null>(() => rules[0]?.id ?? null);
-  const [draftNew, setDraftNew] = useState(false);
-
-  // Start with a new rule for the selection when the sheet has none.
-  if (!rules.length && !draftNew) {
-    const r = newRule();
-    setRules([r]);
-    setCur(r.id);
-    setDraftNew(true);
-  }
+  const addRule = () => { const r = newRule(); setRules((rs) => [...rs, r]); setCur(r.id); };
   const rule = rules.find((r) => r.id === cur) ?? null;
   const update = (patch: Partial<CondRule>) => setRules((rs) => rs.map((r) => (r.id === cur ? { ...r, ...patch } : r)));
   const updateStyle = (patch: Partial<CondRule['style']>) => setRules((rs) => rs.map((r) => (r.id === cur ? { ...r, style: { ...r.style, ...patch } } : r)));
@@ -57,11 +49,16 @@ export function CondFormatDialog({ wb, onClose }: { wb: Workbook; onClose: () =>
               </div>
             );
           })}
-          <div onClick={() => { const r = newRule(); setRules((rs) => [...rs, r]); setCur(r.id); }} className="hov-border"
+          <div onClick={addRule} className="hov-border"
             style={{ padding: '6px 12px', border: '1px solid var(--line)', cursor: 'pointer', textAlign: 'center', color: 'var(--mute)', marginTop: 6 }}>+ New rule</div>
         </div>
         <div style={{ flex: 1, padding: 20, display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-          {!rule && <div className="empty-hint">Select a rule or create a new one.</div>}
+          {!rule && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start' }}>
+              <div className="empty-hint">{rules.length ? 'Select a rule to edit it.' : `No rules on this sheet yet. Create one for ${selRange}.`}</div>
+              <TB onClick={addRule}>+ New rule</TB>
+            </div>
+          )}
           {rule && (
             <>
               <div>
@@ -109,7 +106,7 @@ export function CondFormatDialog({ wb, onClose }: { wb: Workbook; onClose: () =>
             </>
           )}
           <div style={{ marginTop: 'auto', display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-            {rule && <TB onClick={() => { setRules((rs) => rs.filter((r) => r.id !== cur)); setCur(rules.find((r) => r.id !== cur)?.id ?? null); setDraftNew(true); }}>Delete rule</TB>}
+            {rule && <TB onClick={() => { setRules((rs) => rs.filter((r) => r.id !== cur)); setCur(rules.find((r) => r.id !== cur)?.id ?? null); }}>Delete rule</TB>}
             <button type="button" onClick={done}
               style={{ font: 'var(--type-label)', fontWeight: 800, padding: '8px 16px', background: 'var(--accent)', color: 'var(--on-accent)', border: 0, cursor: 'pointer' }}>Done</button>
           </div>

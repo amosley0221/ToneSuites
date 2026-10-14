@@ -16,9 +16,19 @@ export function base64ToBytes(b64: string): Uint8Array {
 
 const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' };
 
+/** Image MIME type from magic bytes (extensions can lie); null when unknown. */
+export function sniffImage(b: Uint8Array): string | null {
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return 'image/png';
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46) return 'image/gif';
+  if (b[0] === 0x42 && b[1] === 0x4d) return 'image/bmp';
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  return null;
+}
+
 export function dataUrlFor(bytes: Uint8Array, filename: string): string {
   const ext = filename.split('.').pop()!.toLowerCase();
-  return `data:${MIME[ext] ?? 'application/octet-stream'};base64,${bytesToBase64(bytes)}`;
+  return `data:${sniffImage(bytes) ?? MIME[ext] ?? 'application/octet-stream'};base64,${bytesToBase64(bytes)}`;
 }
 
 export function parseDataUrl(src: string): { mime: string; bytes: Uint8Array } | null {

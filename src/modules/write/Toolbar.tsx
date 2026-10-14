@@ -1,6 +1,6 @@
 // Write toolbar (screenshot 14): styles · font/size · B I U · align/lists/link/image/table/TOC/footnote/page setup · track changes · export.
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { runCommand } from '@/core/commands';
+import type { ModuleApi } from '@/core/types';
 import { MenuItem } from '@/ui';
 import * as A from './actions';
 import type { WriteModel } from './model';
@@ -12,9 +12,8 @@ const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 7
 /** Default size (pt) of each paragraph style, for the size box when no explicit size is set. */
 const STYLE_PT: Record<A.StyleName, number> = { body: 11, quote: 11, code: 10, title: 30, h1: 21, h2: 16.5, h3: 13 };
 
-const run = (id: string) => runCommand(id);
-
-export function Toolbar({ model, compact, onPanels }: { model: WriteModel; compact: boolean; onPanels: () => void }) {
+export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; api: ModuleApi; compact: boolean; onPanels: () => void }) {
+  const run = (id: string) => api.runCommand(id);
   const state = model.state;
   const style = A.currentStyle(state);
   const ts = A.currentTextStyle(state);

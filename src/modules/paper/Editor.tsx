@@ -1,8 +1,6 @@
 // Paper editor: tools row, thumbnail rail, continuous page view, inspector.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/ui';
-import { moduleApi } from '@/core/documents';
-import { useApp } from '@/core/store';
 import type { EditorProps } from '@/core/types';
 import { PaperActions, preloadGeometry, viewSize } from './actions';
 import { BASE_W, PaperCtx, usePaper as useCtx, type PaperCtxValue } from './context';
@@ -16,10 +14,10 @@ import { Thumb } from './Thumb';
 const LETTER_GEOM: Geom = { view: [0, 0, 612, 792], rotate: 0 };
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
 
-export function PaperEditor({ doc, model, onChange, compact }: EditorProps<PaperModel>) {
+export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorProps<PaperModel>) {
   ensureStyles();
   const version = useModel(model);
-  const api = useMemo(() => ({ ...moduleApi(doc.id), markDirty: onChange }), [doc.id, onChange]);
+  const api = useMemo(() => ({ ...coreApi, markDirty: onChange }), [coreApi, onChange]);
   const actions = useMemo(() => new PaperActions(model, api), [model, api]);
   const ui = model.ui;
 
@@ -89,7 +87,7 @@ export function PaperEditor({ doc, model, onChange, compact }: EditorProps<Paper
   }, [scroller, model, actions]);
 
   // Status bar hint depends on page/tool, which aren't document edits — nudge the chrome.
-  useEffect(() => { useApp.getState().bump(); }, [ui.page, ui.tool, model.pages.length]);
+  useEffect(() => { api.refreshChrome(); }, [api, ui.page, ui.tool, model.pages.length]);
 
   // ---- keyboard (module keys; menu shortcuts are handled by the core) ----
   const onKeyDown = (e: React.KeyboardEvent) => {

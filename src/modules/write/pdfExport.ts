@@ -4,7 +4,7 @@ import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFP
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { pageBox, type WriteModel } from './model';
 import { acceptedDoc } from './track';
-import { footnoteLabel, parseDataUrl } from './util';
+import { footnoteLabel, parseDataUrl, sniffImage } from './util';
 
 const PT = 0.75; // pt per CSS px
 
@@ -83,9 +83,10 @@ export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: f
   for (const src of collectImages(doc)) {
     const d = parseDataUrl(src);
     if (!d) continue;
+    const mime = sniffImage(d.bytes) ?? d.mime;
     try {
-      if (d.mime.includes('png')) images.set(src, await pdf.embedPng(d.bytes));
-      else if (d.mime.includes('jpeg') || d.mime.includes('jpg')) images.set(src, await pdf.embedJpg(d.bytes));
+      if (mime.includes('png')) images.set(src, await pdf.embedPng(d.bytes));
+      else if (mime.includes('jpeg')) images.set(src, await pdf.embedJpg(d.bytes));
     } catch { /* unsupported image: skipped */ }
   }
 

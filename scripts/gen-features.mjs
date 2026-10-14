@@ -20,7 +20,12 @@ let out = '# Features\n\nGenerated from each module\'s menu inventory (`src/modu
 const totals = { done: 0, partial: 0, planned: 0 };
 for (const [id, name] of MODULES) {
   let menus;
-  try { menus = (await import(new URL(`../src/modules/${id}/menus.ts`, import.meta.url))).menus; }
+  try {
+    const m = await import(new URL(`../src/modules/${id}/menus.ts`, import.meta.url));
+    // Accept `menus`, `<id>Menus` or the default export.
+    menus = m.menus ?? m[`${id}Menus`] ?? m.default;
+    if (!Array.isArray(menus)) throw new Error('no MenuDef[] export');
+  }
   catch (e) { out += `\n## ${name}\n\n_menus.ts not found (${e.code ?? e.message})_\n`; continue; }
   const count = { done: 0, partial: 0, planned: 0 };
   let body = '';

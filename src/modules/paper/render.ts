@@ -1,7 +1,8 @@
 // pdf.js integration: document cache, page geometry, canvas rendering, text, form fields, rasterizer.
-import * as pdfjs from 'pdfjs-dist';
-import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Legacy build: includes polyfills (e.g. Map.getOrInsertComputed) that current WebViews lack.
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { buildPdf, type Rasterizer } from './apply';
 import { LETTER, type PageRef, type PaperModel, type Rect, type SourceDoc } from './model';
 import type { TextItemLite } from './text';

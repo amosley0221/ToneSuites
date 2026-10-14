@@ -8,7 +8,7 @@ import {
 } from 'docx';
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { pageBox, PAPER_PX, type WriteModel } from './model';
-import { imageSize, parseDataUrl } from './util';
+import { imageSize, parseDataUrl, sniffImage } from './util';
 
 const TWIP = 15; // twips per CSS px (1440 / 96)
 
@@ -102,7 +102,8 @@ function inlineChildren(node: PMNode, ctx: Ctx, base: Partial<IRunOptions> = {})
 function imageRun(node: PMNode, ctx: Ctx): ImageRun | null {
   const data = parseDataUrl(String(node.attrs.src));
   if (!data) return null;
-  const type = data.mime.includes('png') ? 'png' : data.mime.includes('jpeg') || data.mime.includes('jpg') ? 'jpg' : data.mime.includes('gif') ? 'gif' : data.mime.includes('bmp') ? 'bmp' : null;
+  const mime = sniffImage(data.bytes) ?? data.mime;
+  const type = mime.includes('png') ? 'png' : mime.includes('jpeg') ? 'jpg' : mime.includes('gif') ? 'gif' : mime.includes('bmp') ? 'bmp' : null;
   if (!type) return null;
   const nat = imageSize(data.bytes) ?? { w: node.attrs.width ?? 300, h: node.attrs.height ?? 200 };
   let w = node.attrs.width ?? nat.w;

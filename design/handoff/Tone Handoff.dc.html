@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0c0c0e;--bg0:#0c0c0e;--bg1:#141417;--bg2:#1c1c20;--bg3:#26262c;--line:#2b2b32;--ink:#f2f1ee;--mute:#8d8d96;--accent:#ff5a1f;--on-accent:#0c0c0e}
+*{box-sizing:border-box}
+a{color:var(--accent)} a:hover{color:var(--ink)}
+</style>
+</helmet>
+<div style="max-width:1200px;margin:0 auto;padding:56px 40px 120px;color:var(--ink);font-family:Archivo,Helvetica,sans-serif;font-size:14px;line-height:1.5;display:flex;flex-direction:column;gap:72px">
+
+  <div>
+    <div style="display:flex;align-items:center;gap:10px"><div style="width:16px;height:16px;background:var(--accent)"></div><div style="font-weight:900;font-size:18px;letter-spacing:-0.04em">TONE</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute);margin-left:8px">HANDOFF SPEC · v1</div></div>
+    <div style="font-size:48px;font-weight:900;letter-spacing:-0.045em;line-height:1;margin-top:24px;max-width:800px">One shell, five modes. Build notes for Claude Code.</div>
+    <div style="color:var(--mute);font-size:16px;margin-top:16px;max-width:680px">Tone Suites is a single desktop app. The window chrome (title bar, document tabs, status bar, command palette, inspector width) is constant; each document type swaps in its own menu row, toolbar, left rail and inspector contents. Prototype: <a href="Tone Suites.dc.html">Tone Suites.dc.html</a>.</div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:32px">
+      <div style="border:1px solid var(--line);padding:16px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);letter-spacing:.08em">PLATFORMS</div><div style="margin-top:8px;font-weight:700">Windows 11 → macOS → Android</div><div style="color:var(--mute);margin-top:4px">Shared layout grid; Android collapses inspector to a bottom sheet, tool rail to a bottom bar.</div></div>
+      <div style="border:1px solid var(--line);padding:16px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);letter-spacing:.08em">FILE FORMAT</div><div style="margin-top:8px;font-weight:700">.tone container</div><div style="color:var(--mute);margin-top:4px">Zip with manifest.json + module payload. Import/export: PSD, XLSX, PPTX, DOCX, PDF.</div></div>
+      <div style="border:1px solid var(--line);padding:16px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);letter-spacing:.08em">THEME</div><div style="margin-top:8px;font-weight:700">Dark default, light optional</div><div style="color:var(--mute);margin-top:4px">All UI colors are CSS variables; one accent across the suite.</div></div>
+      <div style="border:1px solid var(--line);padding:16px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);letter-spacing:.08em">SUGGESTED STACK</div><div style="margin-top:8px;font-weight:700">Tauri or Electron + React</div><div style="color:var(--mute);margin-top:4px">Pixel: WebGL canvas. Cells: virtualised grid + HyperFormula. Paper: pdf.js + pdf-lib.</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute);letter-spacing:.08em">01 · TOKENS</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:16px">
+      <div>
+        <div style="font-weight:800;font-size:20px;letter-spacing:-0.02em">Color</div>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+          <sc-for list="{{ colors }}" as="c" hint-placeholder-count="9">
+            <div style="display:grid;grid-template-columns:40px 110px 1fr 1fr;gap:12px;align-items:center;font-family:'JetBrains Mono',monospace;font-size:11px"><div style="width:40px;height:28px;background:{{ c.dark }};border:1px solid var(--line)"></div><div style="color:var(--ink)">{{ c.name }}</div><div style="color:var(--mute)">dark {{ c.dark }}</div><div style="color:var(--mute)">light {{ c.light }}</div></div>
+          </sc-for>
+        </div>
+      </div>
+      <div>
+        <div style="font-weight:800;font-size:20px;letter-spacing:-0.02em">Type &amp; spacing</div>
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:52px;font-weight:900;letter-spacing:-0.045em;line-height:1">Display 52/900</div>
+          <div style="font-size:28px;font-weight:800;letter-spacing:-0.03em;line-height:1.1">Heading 28/800</div>
+          <div style="font-size:17px;font-weight:800;letter-spacing:-0.02em">Title 17/800</div>
+          <div style="font-size:13px;font-weight:600">UI label 13/600 — Archivo</div>
+          <div style="font-size:13px;color:var(--mute)">Body 13/500 muted</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute)">MONO 11 · values, shortcuts, section eyebrows (letter-spacing .08em)</div>
+        </div>
+        <div style="margin-top:20px;color:var(--mute);font-size:13px">Radius: <b style="color:var(--ink)">0</b> everywhere. Borders: 1px var(--line). Spacing scale: 4 · 6 · 8 · 10 · 12 · 14 · 16 · 24 · 32 · 48. Chrome heights: title 44 · menu 32 · toolbar 40 · status 28. Inspector width 280–300 · tool rail 52.</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute);letter-spacing:.08em">02 · COMPONENTS</div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px">
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Buttons</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><div style="padding:6px 14px;background:var(--accent);color:var(--on-accent);font-weight:800">Primary</div><div style="padding:6px 14px;background:var(--ink);color:var(--bg0);font-weight:700">Strong</div><div style="padding:6px 12px;border:1px solid var(--line)">Default</div><div style="padding:6px 12px;color:var(--mute)">Ghost</div></div>
+        <div style="color:var(--mute);font-size:12px">Primary = one per toolbar (Export / Share / Present / Save). Hover: border → ink. No radius, no shadow.</div></div>
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Document tabs</div>
+        <div style="display:flex;border:1px solid var(--line);height:40px"><div style="display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--bg1);box-shadow:inset 0 2px 0 var(--accent);font-weight:600;border-right:1px solid var(--line)"><span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--bg0);font-family:'JetBrains Mono',monospace;font-size:9px">Cl</span>budget.tone</div><div style="display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--mute);border-right:1px solid var(--line)"><span style="width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font-family:'JetBrains Mono',monospace;font-size:9px">Dk</span>q3.tone</div></div>
+        <div style="color:var(--mute);font-size:12px">Active: bg1 + 2px accent top + filled module mark. Module mark is a 2-letter mono glyph, never an icon.</div></div>
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Tool rail</div>
+        <div style="display:flex;gap:2px"><div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--mute);font-family:'JetBrains Mono',monospace;font-size:11px">V</div><div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:var(--on-accent);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500">B</div><div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--mute);font-family:'JetBrains Mono',monospace;font-size:11px">E</div><div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--mute);font-family:'JetBrains Mono',monospace;font-size:11px">T</div></div>
+        <div style="color:var(--mute);font-size:12px">36×36 cells, letter = shortcut. Active = accent fill. Replace letters with 16px icons in production; keep the shortcut in the tooltip.</div></div>
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Inspector panel</div>
+        <div style="border:1px solid var(--line);background:var(--bg1)"><div style="display:flex;border-bottom:1px solid var(--line)"><div style="flex:1;text-align:center;padding:9px;font-weight:700;font-size:12px;box-shadow:inset 0 -2px 0 var(--accent)">Layers</div><div style="flex:1;text-align:center;padding:9px;font-size:12px;color:var(--mute)">Adjust</div><div style="flex:1;text-align:center;padding:9px;font-size:12px;color:var(--mute)">History</div></div><div style="padding:12px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);letter-spacing:.08em">SECTION EYEBROW</div><div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12px"><span>Exposure</span><span style="font-family:'JetBrains Mono',monospace;color:var(--mute)">+0.35</span></div><div style="height:4px;background:var(--bg3);margin-top:8px;position:relative"><div style="height:4px;width:58%;background:var(--accent)"></div><div style="position:absolute;top:-5px;left:58%;width:14px;height:14px;margin-left:-7px;background:var(--ink)"></div></div></div></div>
+        <div style="color:var(--mute);font-size:12px">Segmented tabs (underline), mono eyebrows, square slider thumb.</div></div>
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Selection &amp; focus</div>
+        <div style="display:flex;gap:10px;align-items:center"><div style="width:90px;height:28px;background:rgba(255,90,31,.14);outline:2px solid var(--accent);outline-offset:-2px;display:flex;align-items:center;padding:0 8px;font-family:'JetBrains Mono',monospace;font-size:11px">1,800.00</div><div style="width:90px;height:60px;border:1px dashed var(--accent);background:rgba(255,90,31,.06);position:relative"><div style="position:absolute;left:-4px;top:-4px;width:7px;height:7px;background:var(--accent)"></div><div style="position:absolute;right:-4px;bottom:-4px;width:7px;height:7px;background:var(--accent)"></div></div></div>
+        <div style="color:var(--mute);font-size:12px">Cell: 2px accent outline + 14% accent fill. Canvas: dashed accent + 7px square handles. Same language in Deck and Paper.</div></div>
+      <div style="border:1px solid var(--line);padding:20px;display:flex;flex-direction:column;gap:14px"><div style="font-weight:700">Command palette</div>
+        <div style="border:1px solid var(--line);background:var(--bg1)"><div style="display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--line)"><div style="width:10px;height:10px;background:var(--accent)"></div><div style="font-weight:600;color:var(--mute)">export</div></div><div style="display:flex;gap:10px;padding:9px 12px;font-size:12px;border-bottom:1px solid var(--line)"><span style="flex:1;font-weight:600">Export current document…</span><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute)">Ctrl Shift E</span></div></div>
+        <div style="color:var(--mute);font-size:12px">Ctrl K anywhere. Searches commands, files, sheet formulas and PDF text. Esc closes.</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute);letter-spacing:.08em">03 · FLOWS</div>
+    <div style="display:flex;flex-direction:column;gap:28px;margin-top:16px">
+      <sc-for list="{{ flows }}" as="f" hint-placeholder-count="3">
+        <div style="border:1px solid var(--line);padding:20px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-weight:800;font-size:17px;letter-spacing:-0.02em">{{ f.name }}</div><div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute)">{{ f.module }}</div></div>
+          <div style="display:flex;align-items:stretch;gap:8px;margin-top:16px;flex-wrap:wrap">
+            <sc-for list="{{ f.steps }}" as="st" hint-placeholder-count="5">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:170px;min-height:84px;border:1px solid {{ st.border }};background:{{ st.bg }};padding:12px;display:flex;flex-direction:column;gap:4px"><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute)">{{ st.n }}</div><div style="font-weight:700;font-size:13px">{{ st.title }}</div><div style="color:var(--mute);font-size:12px;line-height:1.4">{{ st.detail }}</div></div>
+                <div style="color:var(--mute);font-size:16px">{{ st.arrow }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--mute);letter-spacing:.08em">04 · MODULE SCOPE (PRO PARITY)</div>
+    <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:16px">
+      <sc-for list="{{ scope }}" as="m" hint-placeholder-count="5">
+        <div style="border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:8px"><div style="width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--ink);color:var(--bg0);font-family:'JetBrains Mono',monospace;font-size:10px">{{ m.mark }}</div><div style="font-weight:800">{{ m.name }}</div></div>
+          <div style="color:var(--mute);font-size:12px;line-height:1.6">{{ m.features }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--mute);margin-top:auto;padding-top:8px;border-top:1px solid var(--line)">{{ m.formats }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const colors = [['--bg0', '#0c0c0e', '#eceae4'], ['--bg1', '#141417', '#f7f6f2'], ['--bg2', '#1c1c20', '#ffffff'], ['--bg3', '#26262c', '#e4e2dc'], ['--line', '#2b2b32', '#d6d4cd'], ['--ink', '#f2f1ee', '#141414'], ['--mute', '#8d8d96', '#6c6c74'], ['--accent', '#ff5a1f', '#ff5a1f'], ['--canvas', '#09090a', '#dcdad3']].map(([name, dark, light]) => ({ name, dark, light }));
+    const mk = (name, module, steps) => ({ name, module, steps: steps.map(([title, detail], i) => ({ n: String(i + 1).padStart(2, '0'), title, detail, arrow: i < steps.length - 1 ? '→' : '', bg: i === 0 || i === steps.length - 1 ? 'var(--bg1)' : 'var(--bg0)', border: i === steps.length - 1 ? 'var(--accent)' : 'var(--line)' })) });
+    const flows = [
+      mk('Open → edit → export', 'ANY MODULE', [['Home or Ctrl O', 'Recent list, device filter, drag-drop onto window'], ['Detect type', 'Extension + magic bytes → pick module; foreign formats import to .tone'], ['Open in tab', 'New document tab; module chrome swaps in, shell stays'], ['Edit', 'Autosave every 5 s to local store; sync queue to other devices'], ['Export', 'Ctrl Shift E → format sheet (native, PDF, PNG…) → save/share']]),
+      mk('Photo retouch', 'PIXEL', [['Drop photo', 'RAW/JPEG/PNG → Background layer, non-destructive'], ['Select subject', 'Magic select tool (W) → mask on new layer'], ['Adjust', 'Inspector › Adjust sliders → “Apply as layer”'], ['Heal / brush', 'Tool options bar updates per tool'], ['Export', 'PNG/JPEG/PSD; size preset; keep .tone master']]),
+      mk('Spreadsheet to slide', 'CELLS → DECK', [['Select range', 'Click-drag; status bar shows sum/count'], ['Insert chart', 'Toolbar › Chart → chart object on sheet'], ['Copy chart', 'Ctrl C — copies live reference, not pixels'], ['Paste in Deck', 'Ctrl V on slide → linked chart, refreshes on data change'], ['Present', '▶ Present; speaker notes on second display']]),
+      mk('Sign a PDF', 'PAPER', [['Open PDF', 'Thumbnails left, page view center'], ['Sign tool', 'Draw / type / upload; saved to profile'], ['Place field', 'Dashed accent field; drag to position'], ['Flatten', 'Optional: bake annotations into page content'], ['Save / send', 'Save PDF or request signature by email']]),
+    ];
+    const scope = [
+      ['Px', 'Pixel', 'Layers, groups, masks, blend modes · Curves/levels/HSL adjustments · Selection: marquee, lasso, magic select, subject · Heal, clone, brush engine · Text & vector shapes · Smart objects · Filters & blur gallery · RAW import · Non-destructive history', 'PSD · PNG · JPEG · TIFF · WebP · RAW'],
+      ['Cl', 'Cells', '400+ functions, named ranges · Pivot tables · Charts (bar, line, pie, scatter, combo) · Conditional formatting · Data validation · Filters, sort, freeze · Formula autocomplete · Scripting (JS) · 1M rows virtualised', 'XLSX · CSV · ODS · TSV'],
+      ['Dk', 'Deck', 'Master layouts & themes · Text, image, shape, chart, table, embed · Transitions & animations · Presenter view, notes, timer · Record narration → MP4 · Linked charts from Cells · Grid, guides, snapping', 'PPTX · PDF · MP4 · PNG'],
+      ['Wr', 'Write', 'Paragraph & character styles · Headers/footers, sections, columns · Tables, images, captions · Footnotes, TOC, cross-refs · Track changes & comments · Spell/grammar · Outline view · Page setup', 'DOCX · PDF · Markdown · ODT'],
+      ['Pp', 'Paper', 'Annotate, highlight, stamp · Sign & request signatures · Form fill & create · Redact (true removal) · Edit text/images in place · Organize: merge, split, rotate, extract · OCR · Compress · Password/permissions', 'PDF · PDF/A · to DOCX / XLSX / PNG'],
+    ].map(([mark, name, features, formats]) => ({ mark, name, features, formats }));
+    return { colors, flows, scope };
+  }
+}
+</script>
+</body>
+</html>

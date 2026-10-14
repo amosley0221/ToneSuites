@@ -1,0 +1,157 @@
+# Builds Tone Suites for Windows, macOS and Android and publishes a GitHub Release.
+# Trigger: push a tag vX.Y.Z (scripts/release.mjs does this) — or run manually with a tag.
+# The release notes come from CHANGELOG.md. Desktop apps update in place from latest.json;
+# the signed APK installs over the previous version (same package id + same signing key).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build (e.g. v0.1.0)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.rel.outputs.id }}
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - id: ver
+        run: |
+          V="${TAG#v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$V" != "$PKG" ]; then echo "Tag $TAG does not match package.json version $PKG"; exit 1; fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+      - name: Update notes from CHANGELOG.md
+        run: node scripts/changelog-section.mjs "${{ steps.ver.outputs.version }}" > notes.md
+      - id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --draft --notes-file notes.md
+          else
+            gh release create "$TAG" --draft --title "Tone Suites $TAG" --notes-file notes.md --verify-tag
+          fi
+          echo "id=$(gh api repos/${{ github.repository }}/releases --jq '.[] | select(.tag_name=="'"$TAG"'") | .id' | head -1)" >> "$GITHUB_OUTPUT"
+
+  desktop:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: '--bundles nsis'
+          - platform: macos-latest
+            args: '--target universal-apple-darwin --bundles app,dmg'
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
+
+  android:
+    needs: create-release
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 27.2.12479018
+      BUILD_TOOLS: 35.0.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK and build tools
+        run: |
+          sdkmanager --install "ndk;${NDK_VERSION}" "build-tools;${BUILD_TOOLS}" "platforms;android-35"
+          echo "NDK_HOME=$ANDROID_HOME/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Generate Android project
+        run: |
+          npx tauri android init --ci
+          npx tauri icon src-tauri/app-icon.png
+      - name: Build APK
+        run: npx tauri android build --apk --ci --target aarch64 armv7
+      - name: Sign APK (stable key — never change it, or updates stop installing over the old app)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || 'tone' }}
+        run: |
+          set -e
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/tone.jks"
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -name '*-release-unsigned.apk' | head -1)
+          echo "Unsigned APK: $APK"
+          BT="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          "$BT/zipalign" -f -p 4 "$APK" "$RUNNER_TEMP/aligned.apk"
+          OUT="ToneSuites-${{ needs.create-release.outputs.version }}.apk"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/tone.jks" --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KS_PASS --key-pass env:KS_PASS --out "$OUT" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify --print-certs "$OUT"
+          echo "APK=$OUT" >> "$GITHUB_ENV"
+      - name: Upload APK to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$APK" --clobber
+
+  publish:
+    needs: [create-release, desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false --latest

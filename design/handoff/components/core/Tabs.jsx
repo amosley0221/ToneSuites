@@ -1,0 +1,4 @@
+import React from 'react';
+export function Tabs({ items, value, onChange, style = 'underline' }) {
+  return <div style={{ display: 'flex', gap: style === 'segmented' ? 4 : 2, borderBottom: style === 'underline' ? '1px solid var(--line)' : 0 }}>{items.map(it => { const on = it === value; return <button key={it} type="button" onClick={() => onChange && onChange(it)} style={{ border: style === 'segmented' ? '1px solid ' + (on ? 'var(--ink)' : 'var(--line)') : 0, borderRadius: 0, cursor: 'pointer', padding: style === 'segmented' ? '5px 10px' : '8px 10px', background: style === 'segmented' && on ? 'var(--ink)' : 'transparent', color: style === 'segmented' && on ? 'var(--bg0)' : on ? 'var(--ink)' : 'var(--mute)', font: 'var(--type-small)', fontWeight: 700, boxShadow: style === 'underline' && on ? 'inset 0 -2px 0 var(--accent)' : 'none' }}>{it}</button>; })}</div>;
+}

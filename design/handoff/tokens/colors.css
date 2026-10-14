@@ -1,0 +1,31 @@
+:root {
+  /* base — dark (default) */
+  --bg0: #0c0c0e;   /* window / canvas chrome */
+  --bg1: #141417;   /* panels, menus, dialogs */
+  --bg2: #1c1c20;   /* hover, open menu trigger */
+  --bg3: #26262c;   /* slider track, disabled fill */
+  --line: #2b2b32;  /* every 1px border */
+  --ink: #f2f1ee;   /* primary text */
+  --mute: #8d8d96;  /* secondary text, inactive */
+  --accent: #ff5a1f;
+  --on-accent: #0c0c0e;
+  --canvas: #09090a;      /* document work area behind pages/canvases */
+  --check: #2a2a2e; --check2: #1e1e22; /* transparency checkerboard */
+  --sel: rgba(255,90,31,.14);          /* selection fill */
+  /* semantic */
+  --positive: #2fb98a;
+  --negative: #e5484d;
+  --info: #4f8ff7;
+  --insert: #1570ef;   /* track-changes insertion */
+  --delete: #b42318;   /* track-changes deletion */
+  --paper: #ffffff; --paper-ink: #1a1a1a; --paper-mute: #777777; --paper-line: #dddddd;
+  /* aliases */
+  --surface-window: var(--bg0); --surface-panel: var(--bg1); --surface-hover: var(--bg2);
+  --text-body: var(--ink); --text-muted: var(--mute); --border-default: var(--line);
+  --accent-alt-lime: #e8ff47; --accent-alt-blue: #4f8ff7; --accent-alt-green: #2fb98a;
+}
+[data-theme="light"] {
+  --bg0: #eceae4; --bg1: #f7f6f2; --bg2: #ffffff; --bg3: #e4e2dc; --line: #d6d4cd;
+  --ink: #141414; --mute: #6c6c74; --canvas: #dcdad3; --check: #cfcdc6; --check2: #e6e4dd;
+  --sel: rgba(255,90,31,.12);
+}

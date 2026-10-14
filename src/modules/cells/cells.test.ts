@@ -190,3 +190,20 @@ describe('xlsx round trip', () => {
     expect(csv.value(csv.sheet, 1, 1)).toBe(2);
   });
 });
+
+describe('exports', () => {
+  it('renders PDF pages and an HTML table', async () => {
+    const { workbookToPdf, workbookToHtml } = await import('./exporters');
+    const wb = new Workbook();
+    const s = wb.sheet;
+    const rows = Array.from({ length: 120 }, (_, i) => ({ r: i, c: 0, v: `Row ${i} – “quoted” <b>` }));
+    wb.setInputs(s, [...rows, { r: 0, c: 1, v: '=1/0' }]);
+    const pdf = await workbookToPdf(wb, 'Test.tone', { orientation: 'Landscape', fit: 'Fit to page width', sheets: 'All sheets' });
+    expect(new TextDecoder().decode(pdf.slice(0, 5))).toBe('%PDF-');
+    const { PDFDocument } = await import('pdf-lib');
+    expect((await PDFDocument.load(pdf)).getPageCount()).toBeGreaterThan(1);
+    const html = workbookToHtml(wb, 'Test', 'active');
+    expect(html).toContain('&lt;b&gt;');
+    expect(html).toContain('#DIV/0!');
+  });
+});

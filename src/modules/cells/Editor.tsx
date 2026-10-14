@@ -185,7 +185,7 @@ function FormulaBar({ wb }: { wb: Workbook }) {
       <input ref={nameRef} value={label} spellCheck={false} aria-label="Name box"
         onFocus={(e) => { setName(selectionLabel(wb, s)); requestAnimationFrame(() => e.target.select()); }}
         onChange={(e) => setName(e.target.value)}
-        onBlur={() => setName(null)}
+        onBlur={(e) => { setName(null); e.target.style.color = ''; }}
         onKeyDown={(e) => {
           e.stopPropagation();
           if (e.key === 'Enter') {

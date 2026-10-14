@@ -487,6 +487,8 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
       wb.ui.reveal = false;
       const gg = { ...g, W: sc.clientWidth, H: sc.clientHeight };
       const { r, c } = revealTarget();
+      if (c < gg.fc) sc.scrollLeft = 0;
+      if (r < gg.fr) sc.scrollTop = 0;
       if (c >= gg.fc) {
         const x0 = gg.cols.pos(c);
         const x1 = x0 + gg.cols.size(c);

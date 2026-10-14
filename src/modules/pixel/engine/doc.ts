@@ -191,7 +191,12 @@ export class PixelDoc {
   /** Set by the editor so commands can drive the viewport. */
   view: { fit: () => void; zoomTo: (z: number) => void; fitRect: (r: Rect) => void } | null = null;
   /** Set by the editor: start free transform / place etc. */
-  editor: { startTransform: (opts?: { placed?: boolean }) => boolean; commitTransient: () => void } | null = null;
+  editor: {
+    startTransform: (opts?: { placed?: boolean }) => boolean;
+    commitTransient: () => void;
+    /** Programmatic scale/rotate of the active layer (Properties panel). */
+    applyTransform: (fn: (p: { sx: number; sy: number; angle: number }, w: number, h: number) => void) => void;
+  } | null = null;
 
   private listeners = new Set<() => void>();
   private paintListeners = new Set<() => void>();

@@ -468,6 +468,12 @@ export class Workbook {
   private applyCellEntries(sheetId: string, entries: [number, CellData | undefined][]) {
     const s = this.sheetById(sheetId);
     if (!s) return;
+    // HyperFormula's per-cell updates are slow for big batches; rebuilding the engine is far faster then.
+    if (entries.length > 1500) {
+      for (const [k, cell] of entries) { if (cell) s.cells.set(k, cell); else s.cells.delete(k); }
+      this.rebuildEngine();
+      return;
+    }
     const id = this.hfId(s);
     this.hf.batch(() => {
       for (const [k, cell] of entries) {

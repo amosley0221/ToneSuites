@@ -19,8 +19,9 @@ export function FilterMenu({ wb, sheet, col, x, y, onClose }: { wb: Workbook; sh
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
     const down = () => onClose();
     window.addEventListener('keydown', k, true);
-    window.addEventListener('pointerdown', down);
-    return () => { window.removeEventListener('keydown', k, true); window.removeEventListener('pointerdown', down); };
+    // Defer: the pointerdown that opened this menu is still bubbling to window.
+    const t = setTimeout(() => window.addEventListener('pointerdown', down));
+    return () => { clearTimeout(t); window.removeEventListener('keydown', k, true); window.removeEventListener('pointerdown', down); };
   }, [onClose]);
   const shown = values.filter((v) => v.toLowerCase().includes(q.toLowerCase())).slice(0, 1000);
   const apply = () => {

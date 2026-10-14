@@ -118,7 +118,7 @@ const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg
 export const mimeFor = (ext: string) => MIME[ext.toLowerCase()] ?? 'image/png';
 
 export async function bytesToCanvas(bytes: Uint8Array, mime = 'image/png'): Promise<Cnv> {
-  const blob = new Blob([bytes as BlobPart], { type: mime });
+  const blob = mime ? new Blob([bytes as BlobPart], { type: mime }) : new Blob([bytes as BlobPart]);
   const bmp = await createImageBitmap(blob);
   const c = newCanvas(bmp.width, bmp.height);
   ctx2d(c).drawImage(bmp, 0, 0);

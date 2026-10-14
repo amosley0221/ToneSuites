@@ -452,10 +452,15 @@ export class Workbook {
   snapshot(): string { return JSON.stringify(workbookToJSON(this)); }
   private restore(json: string) {
     const fresh = workbookFromJSON(JSON.parse(json));
-    // Keep transient UI selection where possible.
-    const sels = new Map(this.sheets.map((s) => [s.id, { sel: s.sel, scroll: s.scroll }]));
-    this.sheets = fresh.sheets;
-    for (const s of this.sheets) { const t = sels.get(s.id); if (t) { s.sel = t.sel; s.scroll = t.scroll; } }
+    // Reuse existing Sheet objects (by id) so references held by the UI stay valid; keep transient state.
+    const old = new Map(this.sheets.map((s) => [s.id, s]));
+    this.sheets = fresh.sheets.map((f) => {
+      const o = old.get(f.id);
+      if (!o) return f;
+      const { sel, scroll } = o;
+      Object.assign(o, f, { sel, scroll, _bounds: undefined, _hidden: undefined });
+      return o;
+    });
     this.active = Math.min(fresh.active, this.sheets.length - 1);
     this.rebuildEngine();
   }
@@ -576,7 +581,7 @@ export class Workbook {
     const changes: { r: number; c: number; cell: CellData | undefined }[] = [];
     const h = src.r1 - src.r0 + 1;
     const w = src.c1 - src.c0 + 1;
-    const down = target.r0 > src.r1 || target.r1 < src.r0;
+    const down = target.r0 < src.r0 || target.r1 > src.r1;
     const series = (vals: (number | null)[]): number | null => {
       if (vals.length < 2 || vals.some((v) => v == null)) return null;
       const d = (vals[1] as number) - (vals[0] as number);

@@ -90,10 +90,14 @@ export async function deserialize(files: Record<string, Uint8Array>, formatVersi
 // ---------- foreign formats ----------
 
 export async function openFile(bytes: Uint8Array, filename: string): Promise<PixelDoc> {
-  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-  if (ext === 'psd') return openPsd(bytes);
-  const c = await bytesToCanvas(bytes, mimeFor(ext));
-  return docFromCanvas(c);
+  // Trust the content, not the extension: PSD starts with "8BPS"; everything else goes to the browser decoder.
+  const isPsd = bytes.length > 4 && bytes[0] === 0x38 && bytes[1] === 0x42 && bytes[2] === 0x50 && bytes[3] === 0x53;
+  if (isPsd) return openPsd(bytes);
+  try {
+    return docFromCanvas(await bytesToCanvas(bytes, ''));
+  } catch {
+    throw new Error(`Could not decode ${filename} as an image`);
+  }
 }
 
 async function openPsd(bytes: Uint8Array): Promise<PixelDoc> {

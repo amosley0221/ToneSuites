@@ -878,6 +878,13 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
     const k = e.key;
     if (ctrl && !e.altKey && !e.shiftKey && ['c', 'x', 'v'].includes(k.toLowerCase())) { e.stopPropagation(); return; }
     const done = () => { e.preventDefault(); e.stopPropagation(); };
+    // The sink is a textarea, so the app shell leaves these to us.
+    if (ctrl && !e.altKey) {
+      const kl = k.toLowerCase();
+      if (kl === 'z' && !e.shiftKey) { done(); wb.undo(); return; }
+      if (kl === 'y' || (kl === 'z' && e.shiftKey)) { done(); wb.redo(); return; }
+      if (kl === 'a' && !e.shiftKey) { done(); wb.select(0, 0, { r0: 0, c0: 0, r1: MAX_ROWS - 1, c1: MAX_COLS - 1 }, false); return; }
+    }
     switch (k) {
       case 'ArrowUp': done(); return move(-1, 0, e.shiftKey, ctrl);
       case 'ArrowDown': done(); return move(1, 0, e.shiftKey, ctrl);

@@ -126,7 +126,10 @@ describe('buildPdf', () => {
     m.mutate((d) => d.edits.push({ id: 'r', page: d.pages[0].id, created: 0, kind: 'redact', rect: { x: 0, y: 0, w: 10, h: 10 }, applied: true }));
     // 1×1 transparent PNG stands in for the pdf.js raster.
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
-    const res = await buildPdf(m.data(), { rasterize: async () => ({ png, view: [0, 0, 600, 800] }) });
+    let rasterSrc = '';
+    const res = await buildPdf(m.data(), { rasterize: async (src) => { rasterSrc = src.id; return { png, view: [0, 0, 600, 800] }; } });
+    // Rasterized from the already-applied first pass, not the original bytes.
+    expect(rasterSrc).toBe('applied');
     expect(res.warnings.length).toBe(0);
     const doc = await PDFDocument.load(res.bytes);
     expect(doc.getPageCount()).toBe(2);

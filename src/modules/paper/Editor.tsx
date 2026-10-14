@@ -76,7 +76,7 @@ export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorPr
     const ro = new ResizeObserver(() => viewSize.set(model, { w: scroller.clientWidth, h: scroller.clientHeight }));
     ro.observe(scroller);
     viewSize.set(model, { w: scroller.clientWidth, h: scroller.clientHeight });
-    if (scroller.clientWidth < BASE_W + 64 && model.ui.zoom === 1) actions.zoomTo((scroller.clientWidth - 24) / BASE_W);
+    if (scroller.clientWidth < BASE_W + 64 && model.ui.zoom === 1) actions.zoomTo((scroller.clientWidth - 32) / BASE_W);
     const wheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
@@ -84,7 +84,7 @@ export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorPr
     };
     scroller.addEventListener('wheel', wheel, { passive: false });
     return () => { ro.disconnect(); scroller.removeEventListener('wheel', wheel); };
-  }, [scroller, model, actions]);
+  }, [scroller, model, actions, compact]);
 
   // Status bar hint depends on page/tool, which aren't document edits — nudge the chrome.
   useEffect(() => { api.refreshChrome(); }, [api, ui.page, ui.tool, model.pages.length]);
@@ -155,7 +155,7 @@ export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorPr
           {ui.thumbs && !compact && <ThumbRail actions={actions} />}
           <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex' }}>
             <div ref={setScroller} className="workarea" onScroll={onScroll} onPointerDown={(e) => { if (e.target === e.currentTarget) model.setUi({ selected: null }); }}
-              style={{ padding: compact ? '12px 0 60px' : '32px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+              style={{ padding: compact ? '12px 12px 60px' : '32px 16px', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: compact ? 12 : 24 }}>
               {model.pages.map((p, i) => (
                 <PageView key={p.id} pageRef={p} index={i} zoom={ui.zoom} root={scroller} version={version} registerEl={registerEl} />
               ))}

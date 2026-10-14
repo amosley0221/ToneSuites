@@ -62,6 +62,21 @@ function pageView(p: PDFPage): ViewBox {
 const INHERITABLE = ['Resources', 'MediaBox', 'CropBox', 'Rotate'];
 
 export async function buildPdf(data: PaperData, opts: BuildOptions = {}): Promise<BuildResult> {
+  const burn = data.edits.filter((e) => e.kind === 'redact' && e.applied);
+  if (opts.rasterize && burn.length) {
+    // Two passes so redacted pages are rasterized *with* their form values, annotations and signatures:
+    // 1) apply everything except applied redactions, 2) rasterize the redacted pages of that result.
+    const burnIds = new Set(burn.map((e) => e.id));
+    const p1 = await buildPdf({ ...data, edits: data.edits.filter((e) => !burnIds.has(e.id)) }, { stripMetadata: opts.stripMetadata });
+    const mid: SourceDoc = { id: 'applied', name: 'applied.pdf', bytes: p1.bytes };
+    const pages = data.pages.map((p, i) => ({ id: p.id, src: mid.id, index: i, rot: 0 as const }));
+    const p2 = await buildPassTwo({ sources: [mid], pages, edits: burn, formValues: {}, newFields: [], flattenForm: false }, opts);
+    return { bytes: p2.bytes, warnings: [...p1.warnings, ...p2.warnings] };
+  }
+  return buildPassTwo(data, opts);
+}
+
+async function buildPassTwo(data: PaperData, opts: BuildOptions): Promise<BuildResult> {
   const warnings: string[] = [];
   const first = data.sources[0];
   const base = first ? await PDFDocument.load(first.bytes, { ignoreEncryption: true, updateMetadata: false }) : await PDFDocument.create();

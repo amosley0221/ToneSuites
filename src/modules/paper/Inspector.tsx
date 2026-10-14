@@ -127,7 +127,7 @@ function ToolExtras() {
   } else if (ui.tool === 'Edit') {
     body = row('Text size', <Select value={String(ui.textSize)} options={TEXT_SIZES} onChange={(v) => model.setUi({ textSize: Number(v) })} width={80} mono />);
   } else if (ui.tool === 'Redact') {
-    body = <div style={{ font: 'var(--type-small)', color: 'var(--mute)', lineHeight: 1.5, borderLeft: '2px solid var(--accent)', paddingLeft: 8 }} title="True redaction: pages with applied redactions are re-rendered as 150 dpi images with the boxes burnt in, and their original content streams are deleted from the saved file. Text on those pages is no longer selectable. Document metadata is not scrubbed — use Protect › Save copy without metadata.">
+    body = <div style={{ font: 'var(--type-small)', color: 'var(--mute)', lineHeight: 1.5, borderLeft: '2px solid var(--accent)', paddingLeft: 8 }} title="True redaction: pages with applied redactions are re-rendered as 150 dpi images with the boxes burnt in, and their original content streams are deleted from the saved file. Text on those pages is no longer selectable and their form fields become flat content. Document metadata is not scrubbed — use Protect › Save copy without metadata.">
       Applied redactions flatten the affected pages to 150 dpi images on save, so the text underneath is truly removed. Other pages keep their text.
     </div>;
   }

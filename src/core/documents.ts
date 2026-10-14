@@ -199,7 +199,7 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
     if (!(await canSaveForeign(doc))) format = 'tone';
     if (!location || opts.saveAs || opts.copy || format !== doc.format) {
       if (opts.silent) return false;
-      const name = (doc.location ? stripExt(doc.title) : doc.title.replace(/\.tone$/, '')) + '.' + format;
+      const name = stripExt(doc.title) + '.' + format;
       if (!isTauri) {
         browserDownload(await encode(doc, format), name);
         if (!opts.copy) useApp.getState().updateDoc(docId, { dirty: false, savedAt: Date.now(), title: name, format });

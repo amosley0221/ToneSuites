@@ -254,7 +254,7 @@ export const PageView = memo(function PageView({ pageRef, index, zoom, root, reg
     <div ref={(el) => { outer.current = el; registerEl(index, el); }} data-page={index}
       className={'pp-page' + (drawing ? ' no-text' : '')}
       onPointerDown={onRootDown} onPointerUp={onRootUp}
-      style={{ width: vp.width, height: vp.height, ...totalScale }}>
+      style={{ width: vp.width, height: vp.height, margin: '0 auto', ...totalScale }}>
       <canvas ref={canvasRef} className="pp-canvas" />
       <div ref={textRef} className="textLayer" />
       {drawing && (

@@ -1,8 +1,9 @@
 // Write toolbar (screenshot 14): styles · font/size · B I U · align/lists/link/image/table/TOC/footnote/page setup · track changes · export.
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ModuleApi } from '@/core/types';
 import { MenuItem } from '@/ui';
 import * as A from './actions';
+import { writeCommands } from './commands';
 import type { WriteModel } from './model';
 import { schema } from './schema';
 import { listChanges } from './track';
@@ -13,7 +14,9 @@ const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 7
 const STYLE_PT: Record<A.StyleName, number> = { body: 11, quote: 11, code: 10, title: 30, h1: 21, h2: 16.5, h3: 13 };
 
 export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; api: ModuleApi; compact: boolean; onPanels: () => void }) {
-  const run = (id: string) => api.runCommand(id);
+  // Run handlers directly (synchronously) so a style chip applies before the next keystroke lands.
+  const handlers = useMemo(() => writeCommands(() => model, api), [model, api]);
+  const run = (id: string) => { const h = handlers[id]; if (h) void h({ doc: null, model }); else api.runCommand(id); };
   const state = model.state;
   const style = A.currentStyle(state);
   const ts = A.currentTextStyle(state);

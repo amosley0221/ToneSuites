@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-15
+
 ### New
 - Update notifications: when a new version is out, an "Update" badge appears in the title bar (and a dot on ⚙) until you install it. The popup shows once per new version, so "Later" doesn't lose it.
 - Settings › Updates: your version, when Tone last checked, Check now, and Install with the update notes.

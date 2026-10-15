@@ -59,7 +59,7 @@ export function TitleBar({ compact }: { compact: boolean }) {
         {tab('home', '⌂', 'Home')}
         {docs.map((d, i) => tab(d.id, MODULE_META[d.mode].mark, d.title, d.dirty, i))}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flexShrink: 0 }}>
+      <div data-tauri-drag-region style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flexShrink: 0 }}>
         {update && (
           <div onClick={() => void runCommand('app.showUpdate')} title={`Tone Suites ${update.version} is available — see what's new`}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--accent)', color: 'var(--on-accent)', cursor: 'pointer', font: 'var(--type-mono)', fontWeight: 500, whiteSpace: 'nowrap' }}>

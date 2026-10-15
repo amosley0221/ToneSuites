@@ -6,6 +6,9 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### Improved
+- The gaps around the search box and buttons on the right of the title bar now also drag the window, and double-click to zoom it, like the rest of the title bar.
+
 ## [0.1.8] - 2026-10-15
 
 ### Improved

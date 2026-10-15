@@ -395,7 +395,13 @@ export async function alsoSaveToDrive(bytes: Uint8Array, filename: string) {
 // ---------- Sync integration ----------
 
 syncHooks.isDirty = (abs) => useApp.getState().docs.some((d) => d.dirty && d.location?.kind === 'local' && d.location.path === abs);
+let fontReload: ReturnType<typeof setTimeout> | undefined;
 syncHooks.onLocalReplaced = (abs) => {
+  // A font added on another device arrived: make it available here.
+  if (/[\\/]Fonts[\\/][^\\/]+\.(ttf|otf|woff2?)$/i.test(abs)) {
+    clearTimeout(fontReload);
+    fontReload = setTimeout(() => void import('./fonts').then((f) => f.loadFonts()), 1000);
+  }
   const doc = useApp.getState().docs.find((d) => d.location?.kind === 'local' && d.location.path === abs);
   if (doc && !doc.dirty) void revertDocument(doc.id).then(() => toast(`${doc.title} updated from another device`), (e) => console.warn('reload after sync', e));
 };

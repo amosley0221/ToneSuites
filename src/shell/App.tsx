@@ -4,6 +4,7 @@ import { confirmQuit, openPath, openRecent } from '@/core/documents';
 import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp, type DialogEntry } from '@/core/store';
+import { loadFonts } from '@/core/fonts';
 import { setSystemBarTheme, startInsets } from '@/core/insets';
 import { runUpdateCheck, updateAction, useUpdates } from '@/core/updater';
 import { UPDATE_CHECK_HOURS } from '@/config';
@@ -109,6 +110,7 @@ export function App() {
       const v = await appVersion();
       if (s.lastSeenVersion && s.lastSeenVersion !== v) push((close) => <WhatsNew close={close} version={v} />);
       if (s.lastSeenVersion !== v) update({ lastSeenVersion: v });
+      void loadFonts();
       void listenForOpenedFiles();
       startSyncLoop();
       void checkUpdates(false, true);

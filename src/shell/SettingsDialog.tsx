@@ -6,6 +6,7 @@ import { useApp } from '@/core/store';
 import type { Mode, ModuleDef } from '@/core/types';
 import { runCommand } from '@/core/commands';
 import { runUpdateCheck, useUpdates } from '@/core/updater';
+import { addFonts, cssFontFamily, loadFonts, removeFont, useFonts } from '@/core/fonts';
 import { connectGoogleDrive } from '@/storage/gdrive';
 import { relTime } from './format';
 import { webdavBrowseUrl } from '@/storage/webdav';
@@ -13,7 +14,7 @@ import { makeProvider, requestSync } from '@/storage/sync';
 import { loadModule, MODULE_META } from '@/modules/meta';
 import { Badge, Button, Dialog, DialogNav, Eyebrow, FormRow, Input, Segmented, Select, Switch } from '@/ui';
 
-const TABS = ['General', 'Appearance', 'Shortcuts', 'Sync', 'Updates', 'Modules', 'Formats'] as const;
+const TABS = ['General', 'Appearance', 'Fonts', 'Shortcuts', 'Sync', 'Updates', 'Modules', 'Formats'] as const;
 type Tab = (typeof TABS)[number];
 
 export function SettingsDialog({ close, initial }: { close: () => void; initial?: string }) {
@@ -28,6 +29,7 @@ export function SettingsDialog({ close, initial }: { close: () => void; initial?
         {tab === 'Shortcuts' && <Shortcuts />}
         {tab === 'Sync' && <Sync />}
         {tab === 'Updates' && <Updates />}
+        {tab === 'Fonts' && <Fonts />}
         {tab === 'Modules' && <Modules />}
         {tab === 'Formats' && <Formats />}
       </div>
@@ -52,6 +54,27 @@ function General() {
       <Eyebrow style={{ marginTop: 22 }}>Documents</Eyebrow>
       <FormRow label="Autosave every"><Select value={String(s.autosaveSeconds)} options={[{ value: '0', label: 'Off' }, { value: '5', label: '5 seconds' }, { value: '30', label: '30 seconds' }, { value: '60', label: '1 minute' }]} onChange={(v) => update({ autosaveSeconds: Number(v) })} /></FormRow>
       <FormRow label="Reopen my tabs on launch"><Switch on={s.restoreSession} onChange={(v) => update({ restoreSession: v })} /></FormRow>
+    </div>
+  );
+}
+
+function Fonts() {
+  const { custom, system, loaded } = useFonts();
+  return (
+    <div>
+      <Eyebrow>Your fonts</Eyebrow>
+      {custom.length === 0 && <div className="empty-hint">Add .ttf, .otf or .woff font files and they'll appear in every font menu. They're kept in your workspace's Fonts folder, so they sync to your other devices.</div>}
+      {custom.map((f) => (
+        <div key={f.file} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+          <span style={{ flex: 1, fontFamily: cssFontFamily(f.family), fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.family}</span>
+          <span style={{ font: 'var(--type-mono)', color: 'var(--mute)' }}>{f.file}</span>
+          <Button size="sm" variant="ghost" onClick={() => void removeFont(f.file)}>Remove</Button>
+        </div>
+      ))}
+      <div style={{ marginTop: 10 }}><Button onClick={() => void addFonts()}>+ Add fonts…</Button></div>
+      <Eyebrow style={{ marginTop: 22 }}>On this device</Eyebrow>
+      <div className="empty-hint">{loaded ? `${system.length.toLocaleString()} installed fonts are available in every font menu.` : 'Loading installed fonts…'}</div>
+      <FormRow label="Refresh after installing new fonts"><Button size="sm" onClick={() => void loadFonts()}>Refresh</Button></FormRow>
     </div>
   );
 }

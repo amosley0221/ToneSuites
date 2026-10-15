@@ -1,4 +1,5 @@
 mod files;
+mod fonts;
 mod oauth;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,7 +26,7 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
 
     builder
-        .invoke_handler(tauri::generate_handler![oauth::oauth_listen, files::take_open_files])
+        .invoke_handler(tauri::generate_handler![oauth::oauth_listen, files::take_open_files, fonts::system_fonts, fonts::system_font_data])
         .build(tauri::generate_context!())
         .expect("error while building Tone Suites")
         .run(|_app, _event| {

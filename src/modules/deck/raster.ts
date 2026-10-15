@@ -119,7 +119,10 @@ async function drawEl(ctx: CanvasRenderingContext2D, doc: DeckDoc, el: El, ink: 
 
 /** Render one slide to a canvas at `scale` (1 = 1920×1080). */
 export async function renderSlideCanvas(doc: DeckDoc, s: Slide, index: number, total: number, scale = 1): Promise<HTMLCanvasElement> {
-  await Promise.all(['400 20px "JetBrains Mono"', '500 20px Archivo', '700 20px Archivo', '900 20px Archivo'].map((f) => document.fonts?.load(f).catch(() => null)));
+  // Web fonts load lazily: make sure every face this slide uses is ready, or the canvas draws a fallback.
+  const faces = new Set(['400 20px "JetBrains Mono"', '500 20px Archivo', '700 20px Archivo', '900 20px Archivo', `500 20px ${cssFont(doc.data.theme.bodyFont)}`, `800 20px ${cssFont(doc.data.theme.bodyFont)}`]);
+  for (const el of s.elements) if (el.type === 'text') faces.add(fontCss(doc, el));
+  await Promise.all([...faces].map((f) => document.fonts?.load(f).catch(() => null)));
   const c = document.createElement('canvas');
   c.width = Math.round(SLIDE_W * scale);
   c.height = Math.round(SLIDE_H * scale);

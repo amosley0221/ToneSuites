@@ -7,11 +7,17 @@ import fontkit from '@pdf-lib/fontkit';
 import archivo500 from '@fontsource/archivo/files/archivo-latin-500-normal.woff?url';
 import archivo700 from '@fontsource/archivo/files/archivo-latin-700-normal.woff?url';
 import archivo900 from '@fontsource/archivo/files/archivo-latin-900-normal.woff?url';
+import archivo500i from '@fontsource/archivo/files/archivo-latin-500-italic.woff?url';
+import archivo700i from '@fontsource/archivo/files/archivo-latin-700-italic.woff?url';
+import archivo900i from '@fontsource/archivo/files/archivo-latin-900-italic.woff?url';
 import mono400 from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff?url';
 import mono700 from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff?url';
+import mono400i from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-italic.woff?url';
+import mono700i from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-italic.woff?url';
+import { fontData } from '@/core/fonts';
 import type { DeckDoc } from './doc';
 import {
-  fontSizeOf, masterOf, MONO_FONT, SLIDE_H, SLIDE_W, slideBg, slideInk,
+  fontCategory, fontSizeOf, masterOf, MONO_FONT, SLIDE_H, SLIDE_W, slideBg, slideInk,
   type DeckData, type El, type ImageEl, type Slide, type TextEl,
 } from './model';
 import { layoutTextEl, letterSpacingOf, textOpacityOf } from './textLayout';
@@ -24,31 +30,59 @@ const yPdf = (yUnits: number) => (SLIDE_H - yUnits) * K;
 
 class FontBook {
   private cache = new Map<string, Promise<PDFFont>>();
-  constructor(private pdf: PDFDocument) {}
+  /** `embed` narrows on retries after a font fails to subset on save: all → bundled only → standard fonts only. */
+  constructor(private pdf: PDFDocument, private embed: 'all' | 'bundled' | 'none' = 'all') {}
   private load(key: string, f: () => Promise<PDFFont>) {
     let p = this.cache.get(key);
     if (!p) { p = f(); this.cache.set(key, p); }
     return p;
   }
-  private bundled(url: string) {
+  private async embedBytes(bytes: Uint8Array, bundled = false): Promise<PDFFont> {
+    // The bundled files are Latin subsets whose contextual alternates (e.g. JetBrains Mono's "->") point at
+    // glyphs that aren't in the file, which makes saving throw.
+    const f = await this.pdf.embedFont(bytes, { subset: true, features: bundled ? { calt: false } : undefined });
+    f.widthOfTextAtSize('Ag', 10); // unusable fonts fail here, not while drawing
+    return f;
+  }
+  private bundled(url: string, fallback: () => Promise<PDFFont>) {
     return this.load(url, async () => {
-      const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
-      return this.pdf.embedFont(bytes, { subset: true });
+      try { return await this.embedBytes(new Uint8Array(await (await fetch(url)).arrayBuffer()), true); } catch { return fallback(); }
     });
   }
   private std(name: StandardFonts) { return this.load(name, () => this.pdf.embedFont(name)); }
-  /** Map a theme font + weight to an embeddable font (system fonts → PDF standard 14). */
-  get(family: string, weight: 'regular' | 'bold' | 'black', italic = false): Promise<PDFFont> {
-    if (family === 'Archivo') return this.bundled(weight === 'black' ? archivo900 : weight === 'bold' ? archivo700 : archivo500);
-    if (family === MONO_FONT) return this.bundled(weight === 'regular' ? mono400 : mono700);
-    const bold = weight !== 'regular';
-    if (family === 'Georgia' || family === 'Times New Roman') {
-      return this.std(bold ? (italic ? StandardFonts.TimesRomanBoldItalic : StandardFonts.TimesRomanBold) : italic ? StandardFonts.TimesRomanItalic : StandardFonts.TimesRoman);
-    }
-    if (family === 'Courier New') return this.std(bold ? StandardFonts.CourierBold : StandardFonts.Courier);
+  private standard(cat: 'sans' | 'serif' | 'mono', bold: boolean, italic: boolean) {
+    if (cat === 'serif') return this.std(bold ? (italic ? StandardFonts.TimesRomanBoldItalic : StandardFonts.TimesRomanBold) : italic ? StandardFonts.TimesRomanItalic : StandardFonts.TimesRoman);
+    if (cat === 'mono') return this.std(bold ? (italic ? StandardFonts.CourierBoldOblique : StandardFonts.CourierBold) : italic ? StandardFonts.CourierOblique : StandardFonts.Courier);
     return this.std(bold ? (italic ? StandardFonts.HelveticaBoldOblique : StandardFonts.HelveticaBold) : italic ? StandardFonts.HelveticaOblique : StandardFonts.Helvetica);
   }
+  /**
+   * Map a font + weight to an embeddable font: bundled Archivo / JetBrains Mono, then the user's added or installed
+   * font (embedded, subset), then the PDF standard font of the same kind.
+   */
+  get(family: string, weight: 'regular' | 'bold' | 'black', italic = false): Promise<PDFFont> {
+    const bold = weight !== 'regular';
+    const fallback = () => this.standard(STANDARD[family.toLowerCase()] ?? fontCategory(family), bold, italic);
+    if (this.embed === 'none') return fallback();
+    if (family === 'Archivo') {
+      const url = weight === 'black' ? (italic ? archivo900i : archivo900) : weight === 'bold' ? (italic ? archivo700i : archivo700) : italic ? archivo500i : archivo500;
+      return this.bundled(url, fallback);
+    }
+    if (family === MONO_FONT) return this.bundled(bold ? (italic ? mono700i : mono700) : italic ? mono400i : mono400, fallback);
+    if (STANDARD[family.toLowerCase()] || this.embed !== 'all') return fallback();
+    return this.load(`${family.toLowerCase()}|${bold ? 'b' : ''}${italic ? 'i' : ''}`, async () => {
+      try {
+        const bytes = await fontData(family, bold, italic);
+        if (bytes?.length) return await this.embedBytes(bytes);
+      } catch { /* not embeddable */ }
+      return fallback();
+    });
+  }
 }
+
+/** Families drawn with the PDF standard fonts (they match closely enough not to embed). */
+const STANDARD: Record<string, 'sans' | 'serif' | 'mono'> = {
+  helvetica: 'sans', arial: 'sans', 'times new roman': 'serif', times: 'serif', 'courier new': 'mono', courier: 'mono',
+};
 
 /** Standard fonts only encode WinAnsi; replace anything else so drawText never throws. */
 function safeText(font: PDFFont, s: string): string {
@@ -167,11 +201,19 @@ async function drawFooter(page: PDFPage, book: FontBook, d: DeckData, i: number,
 }
 
 export async function exportPdf(doc: DeckDoc, title: string, slides: Slide[] = doc.data.slides): Promise<Uint8Array> {
+  // A font can embed fine and still fail while subsetting on save: retry with only the bundled fonts, then none.
+  for (const level of ['all', 'bundled'] as const) {
+    try { return await buildPdf(doc, title, slides, level); } catch (e) { console.warn(`PDF export with fonts "${level}" failed`, e); }
+  }
+  return buildPdf(doc, title, slides, 'none');
+}
+
+async function buildPdf(doc: DeckDoc, title: string, slides: Slide[], embed: 'all' | 'bundled' | 'none'): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   pdf.setTitle(title);
   pdf.setCreator('Tone Deck');
-  const book = new FontBook(pdf);
+  const book = new FontBook(pdf, embed);
   const imgs = new Map<string, PDFImage | null>();
   for (let i = 0; i < slides.length; i++) {
     const s = slides[i];

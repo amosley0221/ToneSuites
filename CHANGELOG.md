@@ -6,6 +6,18 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### New
+- Fonts: Write, Deck and Pixel have a searchable font menu with previews — your own fonts, Tone's fonts and every font installed on your device. Add .ttf/.otf/.woff fonts from any font menu or Settings › Fonts; they're kept in your workspace's Fonts folder and sync to your other devices.
+
+### Improved
+- PDFs from Write and Deck embed the fonts you used (instead of swapping them for Helvetica or Times) and keep accented and non-Latin characters the font supports.
+- Pixel: choosing a font for a type layer draws in that font straight away.
+
+### Fixed
+- Deck: PDF export no longer fails when a kicker or footer contains "->".
+- Write: after Select all, the font box shows the selected text's font.
+
+
 ## [0.1.6] - 2026-10-15
 
 ### Fixed

@@ -1,7 +1,7 @@
 // Editing actions on a WriteModel — used by menu commands, the toolbar and dialogs.
 import { lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import { redo, undo } from 'prosemirror-history';
-import type { MarkType, Node as PMNode, NodeType } from 'prosemirror-model';
+import type { Mark, MarkType, Node as PMNode, NodeType } from 'prosemirror-model';
 import { liftListItem, wrapInList } from 'prosemirror-schema-list';
 import { NodeSelection, TextSelection, type Command, type EditorState } from 'prosemirror-state';
 import { isInTable } from 'prosemirror-tables';
@@ -34,7 +34,17 @@ export function markActive(state: EditorState, type: MarkType): boolean {
 }
 
 export function currentTextStyle(state: EditorState): { fontFamily: string | null; fontSize: number | null } {
-  const marks = state.storedMarks || state.selection.$from.marks();
+  let marks = state.storedMarks || state.selection.$from.marks();
+  if (!state.storedMarks && !state.selection.empty) {
+    // A range (e.g. Select all from the very start): show the style of its first text.
+    let first: readonly Mark[] | null = null;
+    state.doc.nodesBetween(state.selection.from, state.selection.to, (n) => {
+      if (first) return false;
+      if (n.isText) { first = n.marks; return false; }
+      return true;
+    });
+    if (first) marks = first;
+  }
   const m = M.textStyle.isInSet(marks);
   return { fontFamily: m?.attrs.fontFamily ?? null, fontSize: m?.attrs.fontSize ?? null };
 }

@@ -2,16 +2,37 @@
 import { ctx2d, newCanvas } from './canvas';
 import type { Layer, ShapeData, TextData } from './doc';
 
-export const FONT_FAMILIES = [
-  'Archivo', 'JetBrains Mono', 'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Times New Roman',
-  'Garamond', 'Courier New', 'Impact', 'Comic Sans MS', 'system-ui', 'serif', 'sans-serif', 'monospace',
-];
 export const FONT_WEIGHTS: { value: string; label: string }[] = [
   { value: '300', label: 'Light' }, { value: '400', label: 'Regular' }, { value: '500', label: 'Medium' },
   { value: '600', label: 'Semibold' }, { value: '700', label: 'Bold' }, { value: '800', label: 'Extra bold' }, { value: '900', label: 'Black' },
 ];
 
-export const fontString = (t: TextData) => `${t.italic ? 'italic ' : ''}${t.weight} ${t.size}px "${t.font}", sans-serif`;
+const GENERIC = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded']);
+
+/** CSS family list for a type layer's font (generic names stay unquoted so they keep working). */
+export function fontFamilyCss(font: string): string {
+  if (GENERIC.has(font)) return font;
+  return `"${font.replace(/"/g, '')}", ${/mono|courier|consol/i.test(font) ? 'monospace' : 'sans-serif'}`;
+}
+
+export const fontString = (t: TextData) => `${t.italic ? 'italic ' : ''}${t.weight} ${t.size}px ${fontFamilyCss(t.font)}`;
+
+/**
+ * Run `fn` once the face `t` needs can draw: right away when it's ready (installed fonts, faces already loaded),
+ * otherwise after the browser loads it (web fonts load lazily and canvas would draw a fallback meanwhile).
+ * Returns true when it ran synchronously.
+ */
+export function afterFontReady(t: TextData, fn: () => void, timeoutMs = 3000): boolean {
+  const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+  const f = fontString(t);
+  let ready = true;
+  try { ready = !fonts || fonts.check(f); } catch { /* treat as ready */ }
+  if (ready) { fn(); return true; }
+  const timeout = new Promise((r) => setTimeout(r, timeoutMs));
+  void Promise.race([fonts!.load(f), timeout]).catch(() => null).then(() => fn());
+  return false;
+}
+
 
 export function textPad(t: TextData) { return Math.ceil(t.size * 0.3) + 2; }
 

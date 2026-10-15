@@ -2,6 +2,7 @@
 // footnotes, TOC block, page breaks; marks incl. track-changes (insertion/deletion/formatChange) and comments.
 import { Schema, type DOMOutputSpec, type Node as PMNode, type NodeSpec, type MarkSpec } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
+import { cssFont } from './fonts';
 
 export type Align = 'left' | 'center' | 'right' | 'justify';
 
@@ -242,11 +243,7 @@ const marks: Record<string, MarkSpec> = {
   },
 };
 
-/** CSS font stack for a family name chosen in the font picker. */
-export function cssFont(name: string): string {
-  const generic = /mono|courier|consolas/i.test(name) ? 'monospace' : /georgia|times|serif|garamond|cambria/i.test(name) && !/sans/i.test(name) ? 'serif' : 'sans-serif';
-  return `"${name}", ${generic}`;
-}
+export { cssFont };
 
 export const schema = new Schema({ nodes, marks });
 

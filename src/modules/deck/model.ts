@@ -1,4 +1,5 @@
 // Deck data model: pure types + factories (no DOM). Slide coordinates are logical units on a 1920×1080 canvas.
+import { cssFontFamily } from '@/core/fonts';
 
 export const SLIDE_W = 1920;
 export const SLIDE_H = 1080;
@@ -93,15 +94,19 @@ export const BG_PRESETS: { bg: string; ink: string; label: string }[] = [
   { bg: '#e9e2cf', ink: '#141414', label: 'Cream' },
 ];
 
-/** Bundled fonts first, then common system fonts. */
-export const FONT_CHOICES = ['Archivo', 'JetBrains Mono', 'Georgia', 'Helvetica', 'Arial', 'Times New Roman', 'Courier New'];
 export const MONO_FONT = 'JetBrains Mono';
 
+/** Generic category of a family name (CSS fallback and the PDF standard-font fallback). */
+export function fontCategory(name: string): 'sans' | 'serif' | 'mono' {
+  if (/mono|courier|consol|menlo|monaco|\bcode\b|typewriter/i.test(name)) return 'mono';
+  if (/georgia|times|garamond|cambria|serif|baskerville|bodoni|book antiqua|palatino|didot|caslon|minion|constantia|charter|merriweather|playfair|lora/i.test(name) && !/sans/i.test(name)) return 'serif';
+  return 'sans';
+}
+
+/** CSS font stack for a family chosen in the font picker; a missing font falls back to the right generic family. */
 export function cssFont(name: string): string {
-  if (name === 'JetBrains Mono') return '"JetBrains Mono", ui-monospace, monospace';
-  if (name === 'Georgia' || name === 'Times New Roman') return `"${name}", serif`;
-  if (name === 'Courier New') return '"Courier New", monospace';
-  return `"${name}", Helvetica, Arial, sans-serif`;
+  const cat = fontCategory(name);
+  return cssFontFamily(name, cat === 'mono' ? 'ui-monospace, monospace' : cat === 'serif' ? 'serif' : 'Helvetica, Arial, sans-serif');
 }
 
 const M = 128; // outer margin in slide units (48px at the 736px preview)

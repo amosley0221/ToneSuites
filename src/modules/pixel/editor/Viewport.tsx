@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { compositeView } from '../engine/composite';
 import type { PixelDoc } from '../engine/doc';
 import { maskBounds, maskOutline, type Mask } from '../engine/mask';
-import { rerender, textBox, fontString } from '../engine/render';
+import { afterFontReady, rerender, textBox, fontString } from '../engine/render';
 import type { ToolController, PointerInfo } from './controller';
 
 const RULER = 18;
@@ -541,9 +541,9 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
             tl.text = { ...tl.text!, text: e.target.value };
             const first = e.target.value.split('\n')[0].trim();
             if (first) tl.name = first.slice(0, 32);
-            rerender(tl);
-            doc.repaint();
-            setTick((n) => n + 1);
+            const draw = () => { rerender(tl); doc.repaint(); setTick((n) => n + 1); };
+            const next = tl.text;
+            if (!afterFontReady(next, () => { if (tl.text === next) draw(); })) draw(); // fallback now, real face once loaded
           }}
           onKeyDown={(e) => {
             e.stopPropagation();

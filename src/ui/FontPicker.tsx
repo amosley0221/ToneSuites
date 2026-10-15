@@ -1,5 +1,6 @@
 // Searchable font menu shared by all modules: each family is previewed in its own face.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { addFonts, BUNDLED_FONTS, cssFontFamily, useFonts } from '@/core/fonts';
 
 const MAX_ROWS = 400; // keep the menu light on devices with thousands of families (type to narrow)
@@ -68,7 +69,8 @@ export function FontPicker({ value, onChange, width = 160, placeholder = 'Font',
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: value ? cssFontFamily(value) : undefined }}>{value || (allowEmpty ? emptyLabel : placeholder)}</span>
         <span style={{ color: 'var(--mute)', fontSize: 9 }}>▾</span>
       </button>
-      {open && (
+      {/* Portal: a transformed ancestor (e.g. the phone bottom sheet) would otherwise clip a fixed menu. */}
+      {open && createPortal(
         <div ref={menu} onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
           style={{ position: 'fixed', left: pos.left, top: pos.up ? undefined : pos.top, bottom: pos.up ? window.innerHeight - pos.top : undefined, width: 280, maxHeight: 360,
             display: 'flex', flexDirection: 'column', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)', zIndex: 300 }}>
@@ -95,7 +97,8 @@ export function FontPicker({ value, onChange, width = 160, placeholder = 'Font',
             style={{ padding: '8px 12px', cursor: 'pointer', borderTop: '1px solid var(--line)', fontWeight: 700, fontSize: 12 }}>
             + Add fonts…
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

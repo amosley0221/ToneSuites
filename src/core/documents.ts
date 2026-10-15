@@ -1,11 +1,10 @@
 // Document lifecycle: new / open / save / close / autosave / convert.
 import { createElement } from 'react';
-import { SaveBeforeClose } from '@/shell/SaveBeforeClose';
+import { FormatLoss, QuitWithUnsaved, SaveBeforeClose } from '@/shell/SaveBeforeClose';
 import { loadModule, MODULE_META, modeForExt, ALL_OPENABLE } from '@/modules/meta';
 import { makeProvider, requestSync, syncHooks } from '@/storage/sync';
 import {
-  basename, browserDownload, browserPickFiles, extOf, isTauri, joinPath, pickOpenPaths, pickSavePath, readFile, stripExt, uid, writeFile, listDir,
-  appVersion,
+  basename, browserDownload, browserPickFiles, extOf, isTauri, joinPath, pickOpenPaths, pickSavePath, readFile, stripExt, uid, writeFile, listDir, appVersion, dirname,
 } from './platform';
 import { addRecent, useSettings, type RecentEntry } from './settings';
 import { activeDoc, models, useApp } from './store';
@@ -179,8 +178,9 @@ function scheduleAutosave(docId: string) {
   clearTimeout(autosaveTimers.get(docId));
   autosaveTimers.set(docId, setTimeout(() => {
     const d = useApp.getState().docs.find((x) => x.id === docId);
-    // Autosave only documents that already have a home; never pop dialogs on autosave.
-    if (d?.dirty && d.location) void saveDocument(docId, { silent: true });
+    // Autosave only Tone documents that already have a home. Files opened from elsewhere (csv, xlsx, docx, pdf…)
+    // are never overwritten behind your back — they save when you press Save. Never pop dialogs on autosave.
+    if (d?.dirty && d.location && d.format === 'tone') void saveDocument(docId, { silent: true });
   }, sec * 1000));
 }
 
@@ -224,6 +224,17 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
       if (extOf(path) === 'tone') format = 'tone';
       location = { kind: 'local', path };
     }
+    if (format !== 'tone' && !opts.silent) {
+      const mod = await loadModule(doc.mode);
+      const losses = mod.foreignLosses?.(models.get(doc.id), format) ?? [];
+      const ackKey = `${docId}:${format}:${losses.join('|')}`;
+      if (losses.length && !lossAcknowledged.has(ackKey)) {
+        const choice = await askFormatLoss(doc.title, format, losses);
+        if (choice === 'cancel') return false;
+        if (choice === 'tone') return saveAsTone(docId);
+        lossAcknowledged.add(ackKey);
+      }
+    }
     const bytes = await encode(doc, format);
     if (location.kind === 'local') await writeFile(location.path, bytes);
     else {
@@ -241,9 +252,77 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
     requestSync();
     return true;
   } catch (e: any) {
-    toast(`Save failed: ${e?.message ?? e}`, 'error');
+    toast(saveErrorMessage(doc.title, e), 'error');
     return false;
   }
+}
+
+/** Plain-language save errors (the OS ones are cryptic). */
+export function saveErrorMessage(title: string, e: unknown): string {
+  const msg = String((e as any)?.message ?? e);
+  if (/os error 32|being used by another process|EBUSY|resource busy/i.test(msg)) {
+    return `Couldn't save ${title}: it's open in another app (Excel, for example). Close it there and save again — or use Save as.`;
+  }
+  if (/os error 5\b|access is denied|EACCES|EPERM|permission denied/i.test(msg)) {
+    return `Couldn't save ${title}: Tone isn't allowed to write there. Use Save as to pick another folder.`;
+  }
+  return `Save failed: ${msg}`;
+}
+
+// "Save CSV anyway" is remembered per document + format + what would be lost, so Ctrl S doesn't ask every time.
+const lossAcknowledged = new Set<string>();
+
+function askFormatLoss(title: string, format: string, losses: string[]): Promise<'keep' | 'tone' | 'cancel'> {
+  return new Promise((resolve) => {
+    useApp.getState().pushDialog((close) =>
+      createElement(FormatLoss, { title, format, losses, onPick: (c: 'keep' | 'tone' | 'cancel') => { close(); resolve(c); } }),
+    );
+  });
+}
+
+/** Save the document as a new .tone file next to the original (the original file is left as it was). */
+async function saveAsTone(docId: string): Promise<boolean> {
+  const doc = useApp.getState().docs.find((d) => d.id === docId);
+  if (!doc) return false;
+  const name = stripExt(doc.title) + '.tone';
+  if (!isTauri) {
+    browserDownload(await encode(doc, 'tone'), name);
+    useApp.getState().updateDoc(docId, { dirty: false, savedAt: Date.now(), title: name, format: 'tone', location: null });
+    return true;
+  }
+  const near = doc.location?.kind === 'local' ? dirname(doc.location.path) : useSettings.getState().s.workspaceDir || undefined;
+  const path = await pickSavePath(name, ['tone'], near);
+  if (!path) return false;
+  try {
+    await writeFile(path, await encode(doc, 'tone'));
+  } catch (e) {
+    toast(saveErrorMessage(name, e), 'error');
+    return false;
+  }
+  const location = { kind: 'local' as const, path };
+  useApp.getState().updateDoc(docId, { dirty: false, savedAt: Date.now(), location, format: 'tone', title: basename(path) });
+  addRecent({ title: basename(path), mode: doc.mode, format: 'tone', location });
+  toast(`Saved ${basename(path)}`);
+  requestSync();
+  return true;
+}
+
+/** Closing the app window: ask about unsaved documents. Resolves true when it's OK to close. */
+export async function confirmQuit(): Promise<boolean> {
+  const dirty = useApp.getState().docs.filter((d) => d.dirty);
+  if (!dirty.length) return true;
+  const choice = await new Promise<'save' | 'discard' | 'cancel'>((resolve) => {
+    useApp.getState().pushDialog((close) =>
+      createElement(QuitWithUnsaved, { titles: dirty.map((d) => d.title), onPick: (c: 'save' | 'discard' | 'cancel') => { close(); resolve(c); } }),
+    );
+  });
+  if (choice === 'cancel') return false;
+  if (choice === 'discard') return true;
+  for (const d of dirty) {
+    useApp.getState().setActive(d.id);
+    if (!(await saveDocument(d.id))) return false;
+  }
+  return true;
 }
 
 /** Bytes of a document's file as last saved (local file, NAS or Drive). */

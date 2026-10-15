@@ -51,3 +51,11 @@ describe('shortcuts', () => {
     expect(keyEvent(ev)).toBe(normShortcut('Ctrl Space'));
   });
 });
+
+describe('save error messages', async () => {
+  const { saveErrorMessage } = await import('./documents');
+  it('explains a file locked by another app', () => {
+    expect(saveErrorMessage('a.csv', new Error('The process cannot access the file because it is being used by another process. (os error 32)'))).toMatch(/open in another app/);
+  });
+  it('keeps other errors', () => expect(saveErrorMessage('a.csv', 'disk full')).toBe('Save failed: disk full'));
+});

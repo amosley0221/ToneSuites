@@ -6,6 +6,14 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### Fixed
+- Closing the app window with unsaved documents now asks: Save all and close, Close without saving, or Cancel (before, unsaved changes could be lost).
+- Files you opened from elsewhere (CSV, Excel, Word, PDF…) are no longer autosaved over the original every few seconds — they save when you press Save. Tone documents (.tone) still autosave.
+- When another app (like Excel) has the file open, saving explains that in plain words instead of showing a Windows error.
+
+### Improved
+- Saving to a format that can't hold everything (for example a filtered or formatted spreadsheet as CSV) now tells you what would be lost and offers to save as a Tone document, which keeps it all.
+
 ## [0.1.5] - 2026-10-15
 
 ### Fixed

@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { coreHandlers, keyEvent, registerGlobal, runCommand, shortcutMap } from '@/core/commands';
-import { openPath, openRecent } from '@/core/documents';
+import { confirmQuit, openPath, openRecent } from '@/core/documents';
 import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp, type DialogEntry } from '@/core/store';
@@ -126,11 +126,23 @@ export function App() {
     useSettings.getState().update({ lastSession });
   }, [docs.map((d) => d.id + (d.location?.path ?? '')).join('|'), loaded]);
 
-  // Warn before closing the window with unsaved documents.
+  // Closing the window with unsaved documents asks first (Save all / Close without saving / Cancel).
   useEffect(() => {
     const f = (e: BeforeUnloadEvent) => { if (useApp.getState().docs.some((d) => d.dirty)) { e.preventDefault(); } };
     window.addEventListener('beforeunload', f);
-    return () => window.removeEventListener('beforeunload', f);
+    let unlisten: (() => void) | undefined;
+    let closing = false;
+    if (isTauri) {
+      void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+        const w = getCurrentWindow();
+        unlisten = await w.onCloseRequested(async (ev) => {
+          if (closing || !useApp.getState().docs.some((d) => d.dirty)) return;
+          ev.preventDefault();
+          if (await confirmQuit()) { closing = true; await w.destroy(); }
+        });
+      });
+    }
+    return () => { window.removeEventListener('beforeunload', f); unlisten?.(); };
   }, []);
 
   // Global shortcuts (menu shortcuts of the active module + core).

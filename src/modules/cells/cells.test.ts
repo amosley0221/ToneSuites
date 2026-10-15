@@ -344,3 +344,16 @@ describe('filtered lists: edits touch only visible rows', () => {
     expect(st?.fill).toBeTruthy();
   });
 });
+
+describe('foreignLosses (what saving to csv/xlsx would drop)', () => {
+  it('lists filters, formatting and extra sheets for CSV, nothing for a plain sheet', async () => {
+    const mod = (await import('./index')).default;
+    const wb = new Workbook();
+    const s = wb.sheets[0];
+    wb.setInputs(s, [{ r: 0, c: 0, v: 'ID' }, { r: 1, c: 0, v: '7' }]);
+    expect(mod.foreignLosses!(wb, 'csv')).toEqual([]);
+    s.filter = { range: { r0: 0, c0: 0, r1: 1, c1: 0 }, hidden: {}, contains: { 0: '7' } };
+    expect(mod.foreignLosses!(wb, 'csv')).toContain('Filters');
+    expect(mod.foreignLosses!(wb, 'xlsx')).toEqual(['Filter selections (the filter buttons are kept)']);
+  });
+});

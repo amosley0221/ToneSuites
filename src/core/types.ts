@@ -115,6 +115,8 @@ export interface ModuleDef<M = any> {
   deserialize: (files: Record<string, Uint8Array>, formatVersion: number) => Promise<M>;
   /** When a foreign-format doc is saved in place (e.g. a PDF in Paper), produce bytes in that format. Return null if unsupported (core falls back to Save as .tone). */
   saveForeign?: (model: M, format: string) => Promise<Uint8Array | null>;
+  /** What saving in `format` would drop from this model (e.g. ['Filters', 'Charts']). The core asks before saving. */
+  foreignLosses?: (model: M, format: string) => string[];
   exports: ExportFormat[];
   menus: MenuDef[];
   /** Command handlers keyed by MenuItemDef.id. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normShortcut } from './commands';
+import { keyEvent, normShortcut } from './commands';
 import { packTone, unpackTone } from './toneFile';
 import { changelogFor, cmpVersion } from './updater';
 
@@ -41,5 +41,9 @@ describe('shortcuts', () => {
     expect(normShortcut('Ctrl Alt Shift I')).toBe('ctrl+alt+shift+i');
     expect(normShortcut('F12')).toBe('f12');
     expect(normShortcut('Ctrl +')).toBe('ctrl+=');
+  });
+  it('matches Ctrl Space against the key event', () => {
+    const ev = { key: ' ', code: 'Space', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
+    expect(keyEvent(ev)).toBe(normShortcut('Ctrl Space'));
   });
 });

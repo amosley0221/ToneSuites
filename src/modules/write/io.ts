@@ -79,11 +79,13 @@ async function docxToDoc(bytes: Uint8Array): Promise<PMNode> {
       "p[style-name='Subtitle'] => h3:fresh",
       "p[style-name='Quote'] => blockquote > p:fresh",
       "p[style-name='Intense Quote'] => blockquote > p:fresh",
+      "p[style-name='Code'] => pre:separator('\n')",
+      "br[type='page'] => hr.wr-page-break:fresh",
       'u => u',
       'strike => s',
     ],
   });
-  return htmlToDoc(res.value);
+  return htmlToDoc(res.value.replace(/<p>\s*(<hr class="wr-page-break" \/>)\s*<\/p>/g, '$1'));
 }
 
 // ---------- HTML export ----------
@@ -150,15 +152,20 @@ export function docToText(doc: PMNode, notes: FootnoteSettings): string {
     });
     return s;
   };
-  const out: string[] = [];
+  let out: string[] = [];
   const block = (n: PMNode, indent: string, bullet?: string) => {
     const name = n.type.name;
     if (n.isTextblock) { out.push(indent + (bullet ?? '') + inline(n)); return; }
     if (name === 'bullet_list' || name === 'ordered_list') {
+      // Tight list: one line per item (nested lists included), not blank-line separated.
+      const outer = out;
+      out = [];
       n.forEach((li, _o, i) => {
         const mark = name === 'bullet_list' ? '• ' : `${(n.attrs.order ?? 1) + i}. `;
         li.forEach((c, _o2, j) => block(c, j === 0 ? indent : indent + '   ', j === 0 ? mark : undefined));
       });
+      outer.push(out.join('\n'));
+      out = outer;
       return;
     }
     if (name === 'blockquote') { n.forEach((c) => block(c, indent + '> ')); return; }
@@ -179,4 +186,58 @@ export function docToText(doc: PMNode, notes: FootnoteSettings): string {
   let s = out.join('\n\n');
   if (fns.length) s += '\n\n———\n' + fns.map((t, i) => `[${footnoteLabel(i + 1, notes.numbering)}] ${t}`).join('\n');
   return s.replace(/\n{3,}/g, '\n\n').trim() + '\n';
+}
+
+// ---------- Paste from Word ----------
+
+/**
+ * Word puts list items on the clipboard as paragraphs with a fake marker ("·", "1.") and styles
+ * titles/quotes with Mso classes. Turn them into real lists / Title / Quote blocks before parsing.
+ */
+export function cleanWordHtml(html: string): string {
+  if (!/urn:schemas-microsoft-com|class="?Mso|mso-list/i.test(html)) return html;
+  const dom = new window.DOMParser().parseFromString(html, 'text/html');
+  dom.querySelectorAll('o\\:p').forEach((e) => e.remove());
+  dom.querySelectorAll('p.MsoTitle').forEach((p) => p.classList.add('wr-title'));
+  dom.querySelectorAll('p.MsoQuote, p.MsoIntenseQuote').forEach((p) => {
+    const q = dom.createElement('blockquote');
+    p.replaceWith(q);
+    q.appendChild(p);
+  });
+  const isListPara = (el: Element | null): el is HTMLElement =>
+    !!el && el.tagName === 'P' && (/mso-list:\s*l\d/i.test(el.getAttribute('style') || '') || /^MsoListParagraph/.test(el.className));
+  const paras = Array.from(dom.body.querySelectorAll('p')).filter(isListPara);
+  const done = new Set<Element>();
+  for (const first of paras) {
+    if (done.has(first)) continue;
+    // Collect the run of consecutive list paragraphs.
+    const run: HTMLElement[] = [];
+    let el: Element | null = first;
+    while (isListPara(el)) { run.push(el); done.add(el); el = el.nextElementSibling; }
+    const stack: { level: number; list: HTMLElement }[] = [];
+    const host = dom.createElement('div');
+    for (const p of run) {
+      const level = +(/level(\d+)/i.exec(p.getAttribute('style') || '')?.[1] ?? 1);
+      const ignore = p.querySelector('span[style*="mso-list:Ignore"], span[style*="mso-list: Ignore"]');
+      const marker = (ignore?.textContent ?? '').replace(/\s+/g, '').trim();
+      ignore?.remove();
+      const ordered = /^\(?[0-9a-zA-Z]{1,4}[.)]$/.test(marker) && !/^[o§·•▪]$/.test(marker);
+      while (stack.length && stack[stack.length - 1].level > level) stack.pop();
+      let top = stack[stack.length - 1];
+      if (!top || top.level < level) {
+        const list = dom.createElement(ordered ? 'ol' : 'ul');
+        if (top) (top.list.lastElementChild ?? top.list).appendChild(list); else host.appendChild(list);
+        top = { level, list };
+        stack.push(top);
+      }
+      const li = dom.createElement('li');
+      const para = dom.createElement('p');
+      para.innerHTML = p.innerHTML;
+      li.appendChild(para);
+      top.list.appendChild(li);
+    }
+    run[0].replaceWith(...Array.from(host.childNodes));
+    run.slice(1).forEach((p) => p.remove());
+  }
+  return dom.body.innerHTML;
 }

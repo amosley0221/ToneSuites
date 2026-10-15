@@ -7,9 +7,10 @@ import 'prosemirror-view/style/prosemirror.css';
 import { useApp } from '@/core/store';
 import { useSettings } from '@/core/settings';
 import type { EditorProps } from '@/core/types';
-import { refreshTocs, scrollToPos } from './actions';
+import { clearFormatting, refreshTocs, scrollToPos } from './actions';
 import { FootnoteDialog, PageSetupDialog, TocDialog } from './dialogs';
 import { FindPanel } from './FindPanel';
+import { cleanWordHtml } from './io';
 import { pageBox, type WriteModel } from './model';
 import { pageKey, type Spacer } from './plugins';
 import { schema } from './schema';
@@ -34,7 +35,13 @@ export function WriteEditor({ doc, model, onChange, compact, api }: EditorProps<
   return (
     <div className={compact ? 'compact' : undefined} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {!ui.focus && <Toolbar model={model} api={api} compact={compact} onPanels={() => setPanelsOpen((v) => !v)} />}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative' }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', position: 'relative' }}
+        onPointerDownCapture={(e) => {
+          // Phone: tapping the page closes the Panels bottom sheet.
+          if (!compact || !sheetOpen || (e.target as HTMLElement).closest('.wr-side, .wr-find-panel')) return;
+          setPanelsOpen(false);
+          if (inspectorOpen) useApp.setState({ inspectorOpen: false });
+        }}>
         <PageCanvas model={model} onChange={onChange} compact={compact} refresh={api.refreshChrome} />
         {ui.find && <FindPanel model={model} onChange={onChange} right={side && !compact ? 300 : 20} />}
         {side === 'review' && <ReviewPane model={model} onChange={onChange} open={sheetOpen} />}
@@ -96,6 +103,18 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
       state: model.state,
       dispatchTransaction: (tr) => model.apply(tr),
       attributes: { class: 'wr-pm', spellcheck: 'true' },
+      transformPastedHTML: cleanWordHtml,
+      handleKeyDown: (_v, e) => {
+        // Ctrl Space = clear formatting (handled here so it works regardless of the shell's key naming).
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.code === 'Space' || e.key === ' ')) {
+          e.preventDefault();
+          clearFormatting(model);
+          onChangeRef.current();
+          return true;
+        }
+        if (e.key === 'Escape' && model.ui.find) { model.setUI({ find: null }); return true; }
+        return false;
+      },
       handleDoubleClickOn: (_v, _pos, node, nodePos) => {
         if (node.type === schema.nodes.footnote) { model.setUI({ dialog: { kind: 'footnote', pos: nodePos } }); return true; }
         if (node.type === schema.nodes.toc) { model.setUI({ dialog: { kind: 'toc', pos: nodePos } }); return true; }
@@ -130,6 +149,7 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
   }, []);
   const fit = avail ? Math.max(0.25, (avail - (compact ? 16 : 48)) / box.w) : 1;
   const zoom = model.ui.zoom === 0 ? fit : compact ? Math.min(model.ui.zoom, fit) : model.ui.zoom;
+  model.fitZoom = fit;
 
   // ---- Pagination: measure natural block positions and insert spacer widgets at page breaks ----
   const measureRef2 = useRef<() => void>(() => {});
@@ -151,10 +171,11 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
     };
     const contentH = box.h - box.top - box.bottom;
     let shift = 0, si = 0, acc = 0, prevBottomPage = -1, forced = false, lastB = box.top;
+    let prevHeading: { offset: number; T: number; page: number } | null = null;
     doc.forEach((node, offset, i) => {
       while (si < cur.length && cur[si].pos <= offset) { acc += cur[si].height; si++; }
       const el = view.nodeDOM(offset);
-      if (!(el instanceof HTMLElement)) { blockPages.push(blockPages[blockPages.length - 1] ?? 1); return; }
+      if (!(el instanceof HTMLElement)) { blockPages.push(blockPages[blockPages.length - 1] ?? 1); prevHeading = null; return; }
       const natTop = el.offsetTop - acc;
       const natB = natTop + el.offsetHeight;
       if (twoCol) {
@@ -169,10 +190,19 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
       const end = (pp: number) => pp * period + box.h - box.bottom - reserve(pp, mine);
       if (i > 0 && (forced || T > end(p) || (!first && B > end(p)))) {
         const target = p + 1;
-        const h = Math.round(target * period + box.top - T);
-        spacers.push({ pos: offset, height: h, page: target });
-        shift += h; T += h; B += h; p = target;
+        // Keep with next: a heading left at the bottom of the page moves down together with this block.
+        if (!forced && prevHeading && prevHeading.page === p && prevHeading.T > p * period + box.top + 1) {
+          const h = Math.round(target * period + box.top - prevHeading.T);
+          spacers.push({ pos: prevHeading.offset, height: h, page: target });
+          blockPages[blockPages.length - 1] = target + 1;
+          shift += h; T += h; B += h; p = target;
+        } else {
+          const h = Math.round(target * period + box.top - T);
+          spacers.push({ pos: offset, height: h, page: target });
+          shift += h; T += h; B += h; p = target;
+        }
       }
+      prevHeading = (node.type === schema.nodes.heading || node.type === schema.nodes.title) && !mine.length ? { offset, T, page: p } : null;
       if (mine.length) (pageNotes[p] ??= []).push(...mine);
       blockPages.push(p + 1);
       prevBottomPage = Math.floor(B / period);
@@ -228,6 +258,9 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
     return () => { unsub(); el?.removeEventListener('load', onLoad, true); if (timer.current) clearTimeout(timer.current); };
   }, [model]);
 
+  // The mount element *is* the ProseMirror DOM (PM owns its class attribute), so toggle the column class directly.
+  useEffect(() => { model.view?.dom.classList.toggle('wr-cols-2', twoCol); }, [model, twoCol]);
+
   // Spacers depend on padding & widths — remeasure when they change.
   useEffect(() => { schedule(0); }, [box.w, box.h, box.top, box.bottom, box.left, box.right, twoCol, notes.length]);
 
@@ -255,7 +288,7 @@ function PageCanvas({ model, onChange, compact, refresh }: { model: WriteModel; 
               </div>
             );
           })}
-          <div ref={mountRef} className={twoCol ? 'wr-cols-2' : undefined} style={{ padding: `${box.top}px ${box.right}px 0 ${box.left}px`, minHeight: box.h - box.bottom }} />
+          <div ref={mountRef} style={{ padding: `${box.top}px ${box.right}px 0 ${box.left}px`, minHeight: box.h - box.bottom }} />
           {notesAtPage && layout.pageNotes.map((list, p) => list?.length ? (
             <div key={p} className="wr-notes-page" style={{ left: box.left, right: box.right, top: p * period + box.h - box.bottom - (18 + list.reduce((a, i) => a + ((measureRef.current?.children[i] as HTMLElement | undefined)?.offsetHeight ?? 20), 0)) + 6 }}>
               {list.map((i) => notes[i] && <NoteRow key={i} n={i} note={notes[i]} model={model} />)}

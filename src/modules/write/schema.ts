@@ -63,7 +63,7 @@ const nodes: Record<string, NodeSpec> = {
   },
   page_break: {
     group: 'block', atom: true, selectable: true,
-    parseDOM: [{ tag: 'div.wr-page-break' }, { tag: 'div[style*="page-break-after"]' }, { tag: 'div[style*="break-after"]' }],
+    parseDOM: [{ tag: 'div.wr-page-break' }, { tag: 'hr.wr-page-break', priority: 60 }, { tag: 'div[style*="page-break-after"]' }, { tag: 'div[style*="break-after"]' }],
     toDOM: () => ['div', { class: 'wr-page-break', contenteditable: 'false' }, ['span', 'Page break']],
   },
   toc: {

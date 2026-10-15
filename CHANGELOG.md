@@ -7,6 +7,10 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Write: two-column page setup no longer hides your text, and headings no longer get stranded at the bottom of a page (on screen, PDF and Word).
+- Write: Ctrl Space clears formatting; Tab types a tab (and adds a row in the last table cell); numbered lists keep counting when you add to them; undoing a resolved comment brings it back.
+- Write: Word export header/footer page numbers are real page numbers.
+- Phones: a closed panel no longer peeks out above the gesture bar.
 - Cells: CSV files keep leading zeros in IDs (001234) and save back exactly as opened.
 - Cells: dates like 03/04/2024 follow your region's day/month order.
 - Cells: deleting, clearing, formatting or filling a filtered list only changes the visible rows, and copying copies only visible rows.
@@ -28,6 +32,8 @@ updater show), and the app shows it in "What's new" after updating.
 - Cells: the column filter now filters the sheet as you type, shows how many rows match (or "No matches"), and finds values regardless of capitals, spaces or thousands separators (75568 finds 75,568). Cancel puts the previous filter back; OK keeps it, and it's saved with the file.
 
 ### Improved
+- Write: pasting from Word keeps bullets, numbering, titles and quotes; reopened Word files keep page breaks, quotes and code blocks.
+- Write on phones: Panels is first in the toolbar, tapping the page closes the panel, and Page setup / Table of contents fit the screen.
 - Settings, Convert & export and Open from storage fit on a phone screen (Galaxy Fold folded): the sections stack and scroll.
 - Save as can save an Excel, Word or PDF file as a Tone document (.tone).
 - The status bar says "Not synced yet" until the first sync instead of claiming "Synced"; "Sync error"/"Offline" detection is more reliable.

@@ -42,8 +42,8 @@ export function PageSetupDialog({ model, title, onClose, onApply }: { model: Wri
   const sizeLabel = `${PAPER_PX[p.paper].label}${p.orientation === 'landscape' ? ' landscape' : ''} · ${p.margins.top === p.margins.left && p.margins.left === p.margins.right && p.margins.right === p.margins.bottom ? `${p.margins.top} in margins` : 'custom margins'}`;
   return (
     <Dialog title="Page setup" subtitle={title} width={760} height={560} onClose={onClose}>
-      <div style={{ flex: 1, padding: 20, display: 'flex', gap: 24, fontSize: 12, overflow: 'auto' }}>
-        <div style={{ ...col, flex: 1 }}>
+      <div style={{ flex: 1, padding: 20, display: 'flex', flexWrap: 'wrap', alignContent: 'flex-start', gap: 24, fontSize: 12, overflow: 'auto' }}>
+        <div style={{ ...col, flex: '1 1 300px', minWidth: 0 }}>
           <Section label="Paper"><Chips value={p.paper} options={(['Letter', 'A4', 'Legal'] as Paper[]).map((v) => ({ value: v, label: v }))} onChange={(v) => setP({ ...p, paper: v })} /></Section>
           <Section label="Orientation"><Chips value={p.orientation} options={[{ value: 'portrait', label: 'Portrait' }, { value: 'landscape', label: 'Landscape' }] as const} onChange={(v) => setP({ ...p, orientation: v })} /></Section>
           <Section label="Margins (in)">
@@ -69,7 +69,7 @@ export function PageSetupDialog({ model, title, onClose, onApply }: { model: Wri
             <Button variant="primary" onClick={() => onApply(p)}>Apply to document</Button>
           </div>
         </div>
-        <div style={{ width: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ width: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0, margin: '0 auto' }}>
           <Eyebrow>Preview</Eyebrow>
           <div style={{ width: 220, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ ...paperPreview, width: pw, height: ph, position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,.4)' }}>
@@ -104,8 +104,8 @@ export function TocDialog({ model, pos, onClose, onDone }: { model: WriteModel; 
   const counters = [0, 0, 0, 0];
   return (
     <Dialog title="Table of contents" subtitle={ex ? 'Update existing' : 'Insert at cursor'} width={820} height={520} onClose={onClose}>
-      <div style={{ flex: 1, padding: 20, display: 'flex', gap: 24, fontSize: 12, minHeight: 0 }}>
-        <div style={{ ...col, width: 260, flexShrink: 0 }}>
+      <div style={{ flex: 1, padding: 20, display: 'flex', flexWrap: 'wrap', gap: 24, fontSize: 12, minHeight: 0, overflow: 'auto' }}>
+        <div style={{ ...col, flex: '0 1 260px', minWidth: 0 }}>
           <Section label="Include levels"><div style={{ display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--mute)' }}>{[1, 2, 3].map(lvl)}</div></Section>
           <Section label="Style">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -124,7 +124,7 @@ export function TocDialog({ model, pos, onClose, onDone }: { model: WriteModel; 
             <Button variant="primary" onClick={() => { insertOrUpdateToc(model, o, ex ? pos : undefined); onDone(); }} style={{ flex: 1, justifyContent: 'center', padding: '8px 16px' }}>{ex ? 'Update TOC' : 'Insert TOC'}</Button>
           </div>
         </div>
-        <div style={{ ...paperPreview, flex: 1, padding: '28px 32px', fontSize: 13, lineHeight: 2, overflow: 'auto' }}>
+        <div style={{ ...paperPreview, flex: '1 1 280px', minHeight: 200, padding: '28px 32px', fontSize: 13, lineHeight: 2, overflow: 'auto' }}>
           <div style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 12 }}>Contents</div>
           {!entries.length && <div style={{ color: 'var(--paper-mute)', lineHeight: 1.5 }}>No headings at these levels yet. Apply Heading styles to your section titles and they will appear here.</div>}
           {entries.map((e, i) => {

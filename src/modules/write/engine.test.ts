@@ -149,7 +149,8 @@ describe('track changes', () => {
 
 describe('model', () => {
   it('serializes and restores doc, settings and comments', () => {
-    const m = new WriteModel(schema.node('doc', null, [h(1, 'Hi'), p('Body')]));
+    const anchored = schema.node('paragraph', null, [schema.text('Body', [schema.marks.comment.create({ id: 'c1' })])]);
+    const m = new WriteModel(schema.node('doc', null, [h(1, 'Hi'), anchored]));
     m.page.paper = 'A4';
     m.tracking = true;
     m.comments.push({ id: 'c1', author: 'You', time: 5, text: 'check' });

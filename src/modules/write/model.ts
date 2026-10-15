@@ -74,6 +74,8 @@ export class WriteModel {
   view: EditorView | null = null;
   /** Set by the mounted editor to report document edits to the core. */
   onDocChange: (() => void) | null = null;
+  /** Zoom that fits the page width (set by the editor; used to step zoom from "Fit page width"). */
+  fitZoom = 1;
   author = 'You';
   version = 0;
   private listeners = new Set<() => void>();
@@ -118,8 +120,15 @@ export const FORMAT_VERSION = 1;
 export function serializeModel(m: WriteModel): Record<string, string> {
   return {
     'document.json': JSON.stringify({ formatVersion: FORMAT_VERSION, doc: m.state.doc.toJSON() }),
-    'settings.json': JSON.stringify({ formatVersion: FORMAT_VERSION, page: m.page, tracking: m.tracking, comments: m.comments, footnotes: m.footnotes }),
+    'settings.json': JSON.stringify({ formatVersion: FORMAT_VERSION, page: m.page, tracking: m.tracking, comments: anchoredComments(m), footnotes: m.footnotes }),
   };
+}
+
+/** Comments whose highlight is still in the document (resolved ones stay in memory only for Undo). */
+export function anchoredComments(m: WriteModel): Comment[] {
+  const ids = new Set<string>();
+  m.state.doc.descendants((n) => { for (const mk of n.marks) if (mk.type === schema.marks.comment) ids.add(String(mk.attrs.id)); return true; });
+  return m.comments.filter((c) => ids.has(c.id));
 }
 
 export function deserializeModel(files: Record<string, Uint8Array | string>, formatVersion: number): WriteModel {

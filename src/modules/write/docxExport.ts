@@ -120,7 +120,7 @@ function blocks(node: PMNode, ctx: Ctx, list?: { kind: 'bullet' | 'number'; leve
   const pOpts = () => ({
     alignment: node.attrs?.align ? ALIGN[node.attrs.align as keyof typeof ALIGN] : undefined,
     spacing: node.attrs?.lineHeight ? { line: Math.round(node.attrs.lineHeight * 240) } : undefined,
-    ...(quote ? { indent: { left: 720 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: 'BBBBBB', space: 8 } } } : {}),
+    ...(quote ? { style: 'Quote', indent: { left: 720 }, border: { left: { style: BorderStyle.SINGLE, size: 12, color: 'BBBBBB', space: 8 } } } : {}),
   });
   switch (name) {
     case 'paragraph':
@@ -129,11 +129,11 @@ function blocks(node: PMNode, ctx: Ctx, list?: { kind: 'bullet' | 'number'; leve
         ...(list ? list.kind === 'bullet' ? { bullet: { level: list.level } } : { numbering: { reference: 'wr-num', level: list.level, instance: list.instance } } : {}),
       }));
       break;
-    case 'title': out.push(new Paragraph({ ...pOpts(), heading: HeadingLevel.TITLE, children: inlineChildren(node, ctx) })); break;
-    case 'heading': out.push(new Paragraph({ ...pOpts(), heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][node.attrs.level - 1], children: inlineChildren(node, ctx) })); break;
+    case 'title': out.push(new Paragraph({ ...pOpts(), keepNext: true, heading: HeadingLevel.TITLE, children: inlineChildren(node, ctx) })); break;
+    case 'heading': out.push(new Paragraph({ ...pOpts(), keepNext: true, keepLines: true, heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][node.attrs.level - 1], children: inlineChildren(node, ctx) })); break;
     case 'blockquote': node.forEach((c) => out.push(...blocks(c, ctx, list, true))); break;
     case 'code_block':
-      for (const line of node.textContent.split('\n')) out.push(new Paragraph({ children: [new TextRun({ text: line, font: 'Courier New', size: 20 })], shading: { type: ShadingType.CLEAR, fill: 'F5F5F3', color: 'auto' } }));
+      for (const line of node.textContent.split('\n')) out.push(new Paragraph({ style: 'Code', children: [new TextRun({ text: line, font: 'Courier New', size: 20 })], shading: { type: ShadingType.CLEAR, fill: 'F5F5F3', color: 'auto' } }));
       break;
     case 'horizontal_rule': out.push(new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: 'CCCCCC', space: 1 } } })); break;
     case 'page_break': out.push(new Paragraph({ children: [new PageBreak()] })); break;
@@ -197,10 +197,16 @@ export async function docxBytes(model: WriteModel): Promise<Uint8Array> {
   model.state.doc.forEach((n) => children.push(...blocks(n, ctx)));
 
   const portrait = PAPER_PX[page.paper];
-  const headerPara = (text: string) => new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text, color: '777777', size: 18 })] });
+  // {page} / {pages} in header & footer text become live Word page fields.
+  const hfRuns = (text: string): ParagraphChild[] => text.split(/(\{pages?\})/).filter(Boolean).map((part) =>
+    part === '{page}' ? new TextRun({ children: [PageNumber.CURRENT], color: '777777', size: 18 })
+      : part === '{pages}' ? new TextRun({ children: [PageNumber.TOTAL_PAGES], color: '777777', size: 18 })
+        : new TextRun({ text: part, color: '777777', size: 18 }));
+  const headerPara = (text: string) => new Paragraph({ alignment: AlignmentType.CENTER, children: hfRuns(text) });
   const footerChildren: ParagraphChild[] = [];
-  if (page.footer) footerChildren.push(new TextRun({ text: page.footer + (page.pageNumbers ? '   ' : ''), color: '777777', size: 18 }));
-  if (page.pageNumbers) footerChildren.push(new TextRun({ children: [PageNumber.CURRENT], color: '777777', size: 18 }));
+  const autoNumber = page.pageNumbers && !/\{page\}/.test(page.footer);
+  if (page.footer) footerChildren.push(...hfRuns(page.footer + (autoNumber ? '   ' : '')));
+  if (autoNumber) footerChildren.push(new TextRun({ children: [PageNumber.CURRENT], color: '777777', size: 18 }));
 
   const doc = new Document({
     creator: model.author,
@@ -219,7 +225,14 @@ export async function docxBytes(model: WriteModel): Promise<Uint8Array> {
         })),
       }],
     },
-    styles: { default: { document: { run: { font: 'Arial', size: 22 } } } },
+    styles: {
+      default: { document: { run: { font: 'Arial', size: 22 }, paragraph: { spacing: { after: 120, line: 264 } } } },
+      // Named styles so Word (and re-opening in Tone) recognise quotes and code blocks.
+      paragraphStyles: [
+        { id: 'Quote', name: 'Quote', basedOn: 'Normal', next: 'Normal', run: { color: '555555' } },
+        { id: 'Code', name: 'Code', basedOn: 'Normal', next: 'Normal', run: { font: 'Courier New', size: 20 }, paragraph: { spacing: { after: 0, line: 240 } } },
+      ],
+    },
     sections: [{
       properties: {
         titlePage: page.differentFirst,

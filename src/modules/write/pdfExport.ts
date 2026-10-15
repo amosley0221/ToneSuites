@@ -106,9 +106,13 @@ export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: f
     const lay = new Layout(fonts, images, colW, notes, numbering, opts.markup, headingPages, headingLevels);
     const items: Item[] = [];
     const headingItemIdx: number[] = [];
+    /** Heading start item → index after its last item (keep-with-next). */
+    const headingEnd = new Map<number, number>();
     doc.forEach((n) => {
-      if (n.type.name === 'heading' || n.type.name === 'title') headingItemIdx.push(items.length);
+      const start = items.length;
+      if (n.type.name === 'heading' || n.type.name === 'title') headingItemIdx.push(start);
       items.push(...lay.block(n, 0));
+      if (n.type.name === 'heading' || n.type.name === 'title') headingEnd.set(start, items.length);
     });
     if (!notesAtPage && notes.length) {
       items.push({ kind: 'rule', x: 0, w: 120, h: 1, before: 24 });
@@ -126,7 +130,15 @@ export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: f
       if (col >= cols) { col = 0; pages.push({ items: [], notes: [] }); }
       y = 0;
     };
-    items.forEach((it) => {
+    items.forEach((it, idx) => {
+      // Keep a heading with the first line that follows it (no stranded headings at a page bottom).
+      const hEnd = headingEnd.get(idx);
+      if (hEnd != null && y > 0 && items[hEnd] && items[hEnd].kind !== 'break') {
+        let need = 0;
+        for (let k = idx; k <= hEnd; k++) need += (k === idx ? it.before : items[k].before) + items[k].h;
+        const reserve0 = notesAtPage ? noteHeight(pages[pages.length - 1].notes) : 0;
+        if (y + need > limit - reserve0 && need < limit) newColumn();
+      }
       if (it.kind === 'break') { if (y > 0 || col > 0) { col = cols - 1; newColumn(); } itemPage.push(pages.length); return; }
       const fns = it.kind === 'line' ? it.line.fns : it.kind === 'row' ? rowNotes(it) : [];
       const cur = pages[pages.length - 1];

@@ -2,10 +2,10 @@
 import { baseKeymap, chainCommands, exitCode, toggleMark } from 'prosemirror-commands';
 import { history, redo, undo } from 'prosemirror-history';
 import { keymap } from 'prosemirror-keymap';
-import type { Node as PMNode } from 'prosemirror-model';
+import type { Node as PMNode, NodeType } from 'prosemirror-model';
 import { liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
 import { Plugin, PluginKey, type Command } from 'prosemirror-state';
-import { columnResizing, goToNextCell, tableEditing } from 'prosemirror-tables';
+import { addRowAfter, columnResizing, goToNextCell, isInTable, tableEditing } from 'prosemirror-tables';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { schema } from './schema';
 
@@ -89,12 +89,39 @@ const hardBreak: Command = chainCommands(exitCode, (state, dispatch) => {
   return true;
 });
 
+const swallow = (cmd: Command): Command => (state, dispatch, view) => { cmd(state, dispatch, view); return true; };
+
+/** Tab in the last cell of a table adds a row and moves into it (Word behaviour). */
+const addRowAtEnd: Command = (state, dispatch, view) => {
+  if (!isInTable(state)) return false;
+  if (!dispatch) return true;
+  if (!addRowAfter(state, dispatch)) return false;
+  const next = view?.state ?? null;
+  if (next) goToNextCell(1)(next, view!.dispatch);
+  return true;
+};
+
+/** In a list where the item can't be indented further: do nothing (but keep focus). */
+const inList = (li: NodeType): Command => (state) => {
+  const { $from } = state.selection;
+  for (let d = $from.depth; d > 0; d--) if ($from.node(d).type === li) return true;
+  return false;
+};
+
+const insertTab: Command = (state, dispatch) => {
+  if (state.selection.$from.parent.type.spec.code) { dispatch?.(state.tr.insertText('  ').scrollIntoView()); return true; }
+  dispatch?.(state.tr.insertText('\t').scrollIntoView());
+  return true;
+};
+
 export function buildPlugins(): Plugin[] {
   const li = schema.nodes.list_item;
   return [
     history(),
     keymap({
-      'Mod-z': undo, 'Shift-Mod-z': redo, 'Mod-y': redo,
+      // Always swallow undo/redo keys: an empty stack must not fall through to the browser's own
+      // contenteditable undo (or to keymap shift-fallbacks that would run Undo for Ctrl Shift Z).
+      'Mod-z': swallow(undo), 'Shift-Mod-z': swallow(redo), 'Mod-y': swallow(redo),
       'Mod-b': toggleMark(schema.marks.strong), 'Mod-i': toggleMark(schema.marks.em), 'Mod-u': toggleMark(schema.marks.underline),
       'Mod-`': toggleMark(schema.marks.code),
       'Shift-Enter': hardBreak, 'Mod-Enter': (state, dispatch) => {
@@ -106,8 +133,10 @@ export function buildPlugins(): Plugin[] {
         return true;
       },
       Enter: splitListItem(li),
-      Tab: chainCommands(goToNextCell(1), sinkListItem(li)),
-      'Shift-Tab': chainCommands(goToNextCell(-1), liftListItem(li)),
+      // Tab never moves focus out of the page: next cell (adding a row at the end of a table),
+      // indent in lists, otherwise a tab character.
+      Tab: chainCommands(goToNextCell(1), addRowAtEnd, sinkListItem(li), inList(li), insertTab),
+      'Shift-Tab': chainCommands(goToNextCell(-1), liftListItem(li), () => true),
       'Mod-[': liftListItem(li), 'Mod-]': sinkListItem(li),
     }),
     keymap(baseKeymap),

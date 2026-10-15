@@ -37,6 +37,7 @@ export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; 
 
   return (
     <div className="toolbar" style={{ padding: '0 12px' }}>
+      {compact && <>{chip('Panels', false, onPanels, '', 'Show outline, stats and comments')}<div className="tsep" /></>}
       <div style={{ display: 'flex', gap: 2 }}>
         {styleChip('body', 'Body', 'write.format.style.body')}
         {styleChip('title', 'Title', 'write.format.style.title')}
@@ -71,7 +72,6 @@ export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; 
         {chip('Page setup', false, () => run('write.file.pageSetup'), 'sq', 'Page setup')}
       </div>
       <div style={{ flex: 1, minWidth: 8 }} />
-      {compact && chip('Panels', false, onPanels, '', 'Show inspector')}
       <button type="button" className={'wr-chip' + (model.ui.review ? ' on' : '')} onMouseDown={keep}
         onClick={() => model.setUI({ review: !model.ui.review })} title={model.tracking ? 'Tracking changes — click to review' : 'Review changes'}>
         {model.tracking && <span style={{ width: 6, height: 6, background: 'var(--accent)', display: 'inline-block' }} />}

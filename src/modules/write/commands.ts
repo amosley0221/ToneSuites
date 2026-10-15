@@ -42,8 +42,10 @@ export function writeCommands(getModel: () => WriteModel | undefined, api: Modul
   });
 
   const zoomStep = (m: WriteModel, dir: 1 | -1) => {
-    const i = ZOOMS.findIndex((z) => z >= m.ui.zoom - 0.001);
-    const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, (i < 0 ? ZOOMS.length - 1 : i) + dir))];
+    const cur = m.ui.zoom || m.fitZoom || 1; // 0 = fit page width
+    const next = dir > 0
+      ? ZOOMS.find((z) => z > cur + 0.001) ?? ZOOMS[ZOOMS.length - 1]
+      : [...ZOOMS].reverse().find((z) => z < cur - 0.001) ?? ZOOMS[0];
     m.setUI({ zoom: next });
   };
 

@@ -5,6 +5,7 @@ import type { MarkType, Node as PMNode, NodeType } from 'prosemirror-model';
 import { liftListItem, wrapInList } from 'prosemirror-schema-list';
 import { NodeSelection, TextSelection, type Command, type EditorState } from 'prosemirror-state';
 import { isInTable } from 'prosemirror-tables';
+import { canJoin } from 'prosemirror-transform';
 import type { Comment, WriteModel } from './model';
 import { schema, type Align, type TocEntry } from './schema';
 import { outline } from './stats';
@@ -133,8 +134,28 @@ export function toggleList(m: WriteModel, kind: 'bullet' | 'ordered') {
     });
     return;
   }
-  m.exec(wrapInList(type));
+  if (m.exec(wrapInList(type))) m.exec(joinAdjacentLists, false);
 }
+
+/** Merge the list around the cursor with same-type lists directly before/after it (so numbering continues). */
+export const joinAdjacentLists: Command = (state, dispatch) => {
+  const { $from } = state.selection;
+  for (let d = $from.depth; d > 0; d--) {
+    const n = $from.node(d);
+    if (n.type !== N.bullet_list && n.type !== N.ordered_list) continue;
+    const tr = state.tr;
+    const after = $from.after(d);
+    const $after = tr.doc.resolve(after);
+    if ($after.nodeAfter?.type === n.type && canJoin(tr.doc, after)) tr.join(after);
+    const before = $from.before(d);
+    const $before = tr.doc.resolve(before);
+    if ($before.nodeBefore?.type === n.type && canJoin(tr.doc, before)) tr.join(before);
+    if (!tr.docChanged) return false;
+    dispatch?.(tr);
+    return true;
+  }
+  return false;
+};
 
 export function clearFormatting(m: WriteModel) {
   m.exec((state, dispatch) => {
@@ -179,8 +200,9 @@ export function insertTable(m: WriteModel, rows = 3, cols = 3) {
   m.exec((state, dispatch) => {
     if (isInTable(state)) return false;
     const { $from } = state.selection;
-    const at = $from.depth >= 1 ? $from.after(1) : $from.pos;
-    const tr = state.tr.insert(at, [table, N.paragraph.create()]);
+    const emptyPara = $from.depth === 1 && $from.parent.type === N.paragraph && $from.parent.content.size === 0;
+    const at = emptyPara ? $from.before(1) : $from.depth >= 1 ? $from.after(1) : $from.pos;
+    const tr = emptyPara ? state.tr.replaceWith(at, $from.after(1), [table, N.paragraph.create()]) : state.tr.insert(at, [table, N.paragraph.create()]);
     tr.setSelection(TextSelection.near(tr.doc.resolve(at + 3)));
     dispatch?.(tr.scrollIntoView());
     return true;
@@ -298,7 +320,8 @@ export function addComment(m: WriteModel, text: string): boolean {
 }
 
 export function removeComment(m: WriteModel, id: string) {
-  m.comments = m.comments.filter((c) => c.id !== id);
+  // The comment record is kept (only anchored comments are shown, saved and exported) so Undo can
+  // bring a resolved comment back together with its highlight.
   const tr = m.state.tr;
   m.state.doc.descendants((n, pos) => {
     const mk = n.marks.find((x) => x.type === M.comment && x.attrs.id === id);

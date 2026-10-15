@@ -77,6 +77,7 @@ export function keyEvent(e: KeyboardEvent): string {
   if (e.code.startsWith('Key')) key = e.code.slice(3).toLowerCase();
   else if (e.code.startsWith('Digit')) key = e.code.slice(5);
   else if (key === 'escape') key = 'esc';
+  else if (key === ' ') key = 'space';
   else if (key === 'delete') key = 'del';
   else if (key === '+') key = '=';
   else if (key === 'arrowup') key = '↑';

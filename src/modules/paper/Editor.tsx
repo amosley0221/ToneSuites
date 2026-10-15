@@ -120,6 +120,31 @@ export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorPr
   const [saveMenu, setSaveMenu] = useState(false);
   const panels = compact && ui.panels;
 
+  const controls = (
+    <>
+      <Button size="sm" variant="ghost" onClick={actions.zoomOut} title="Zoom out (Ctrl -)">−</Button>
+      <button type="button" className="hov-ink" onClick={() => actions.zoomTo(1)} title="Actual size (Ctrl 0)"
+        style={{ border: 0, background: 'transparent', color: 'var(--mute)', font: 'var(--type-mono)', cursor: 'pointer', minWidth: 42 }}>{Math.round(ui.zoom * 100)}%</button>
+      <Button size="sm" variant="ghost" onClick={actions.zoomIn} title="Zoom in (Ctrl =)">+</Button>
+      {compact && <Button size="sm" active={ui.panels} onClick={() => model.setUi({ panels: !ui.panels })}>Panels</Button>}
+      <div style={{ position: 'relative', marginLeft: 6 }}>
+        <Button variant="primary" onClick={() => setSaveMenu(!saveMenu)}>Save / convert</Button>
+        {saveMenu && (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onPointerDown={() => setSaveMenu(false)} />
+            <div style={{ position: 'fixed', right: 12, marginTop: 4, width: 240, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)', zIndex: 51, padding: '4px 0', font: 'var(--type-small)' }}>
+              {([['Save', 'Ctrl S', () => api.runCommand('file.save')], ['Save as…', 'Ctrl Shift S', () => api.runCommand('file.saveAs')], ['Convert & export…', 'Ctrl Shift E', () => api.runCommand('file.export')], ['Save compressed copy…', '', () => void actions.compress()]] as const).map(([l, s, go]) => (
+                <div key={l} className="hov-row" onClick={() => { setSaveMenu(false); go(); }} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 14px', cursor: 'pointer' }}>
+                  <span>{l}</span><span style={{ font: 'var(--type-mono)', fontSize: 10, color: 'var(--mute)' }}>{s}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <PaperCtx.Provider value={ctx}>
       <div ref={rootRef} tabIndex={-1} onKeyDown={onKeyDown} onPointerDown={focusRoot} className={compact ? 'compact' : ''}
@@ -129,28 +154,10 @@ export function PaperEditor({ model, onChange, compact, api: coreApi }: EditorPr
             <button key={t} type="button" className={'pp-tool' + (ui.tool === t ? ' on' : '')}
               onClick={() => { actions.setTool(t); if (t === 'Convert') api.runCommand('file.export'); }}>{t}</button>
           ))}
-          <span style={{ flex: 1, minWidth: 8 }} />
-          <Button size="sm" variant="ghost" onClick={actions.zoomOut} title="Zoom out (Ctrl -)">−</Button>
-          <button type="button" className="hov-ink" onClick={() => actions.zoomTo(1)} title="Actual size (Ctrl 0)"
-            style={{ border: 0, background: 'transparent', color: 'var(--mute)', font: 'var(--type-mono)', cursor: 'pointer', minWidth: 42 }}>{Math.round(ui.zoom * 100)}%</button>
-          <Button size="sm" variant="ghost" onClick={actions.zoomIn} title="Zoom in (Ctrl =)">+</Button>
-          {compact && <Button size="sm" active={ui.panels} onClick={() => model.setUi({ panels: !ui.panels })}>Panels</Button>}
-          <div style={{ position: 'relative', marginLeft: 6 }}>
-            <Button variant="primary" onClick={() => setSaveMenu(!saveMenu)}>Save / convert</Button>
-            {saveMenu && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onPointerDown={() => setSaveMenu(false)} />
-                <div style={{ position: 'fixed', right: 12, marginTop: 4, width: 240, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)', zIndex: 51, padding: '4px 0', font: 'var(--type-small)' }}>
-                  {([['Save', 'Ctrl S', () => api.runCommand('file.save')], ['Save as…', 'Ctrl Shift S', () => api.runCommand('file.saveAs')], ['Convert & export…', 'Ctrl Shift E', () => api.runCommand('file.export')], ['Save compressed copy…', '', () => void actions.compress()]] as const).map(([l, s, go]) => (
-                    <div key={l} className="hov-row" onClick={() => { setSaveMenu(false); go(); }} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 14px', cursor: 'pointer' }}>
-                      <span>{l}</span><span style={{ font: 'var(--type-mono)', fontSize: 10, color: 'var(--mute)' }}>{s}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          {!compact && <><span style={{ flex: 1, minWidth: 8 }} />{controls}</>}
         </div>
+        {/* Phone: zoom, Panels and Save get their own row so they're never scrolled out of reach. */}
+        {compact && <div className="toolbar" style={{ padding: '0 12px', gap: 4 }}><span style={{ flex: 1 }} />{controls}</div>}
         <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
           {ui.thumbs && !compact && <ThumbRail actions={actions} />}
           <div style={{ flex: 1, minWidth: 0, position: 'relative', display: 'flex' }}>
@@ -196,8 +203,8 @@ function SearchBar({ actions }: { actions: PaperActions }) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const change = (v: string) => { setQ(v); clearTimeout(timer.current); timer.current = setTimeout(() => void actions.search(v), 250); };
   return (
-    <div style={{ position: 'absolute', top: 10, right: 18, zIndex: 20, display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)' }}>
-      <div className="field" style={{ width: 220 }}>
+    <div style={{ position: 'absolute', top: 10, right: 12, maxWidth: 'calc(100% - 24px)', zIndex: 20, display: 'flex', alignItems: 'center', gap: 6, padding: 6, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)' }}>
+      <div className="field" style={{ width: 220, minWidth: 80, flexShrink: 1 }}>
         <input autoFocus value={q} placeholder="Find in document" onChange={(e) => change(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') { e.preventDefault(); if (q !== s.query) void actions.search(q); else actions.findStep(e.shiftKey ? -1 : 1); }

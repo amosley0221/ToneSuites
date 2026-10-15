@@ -33,3 +33,15 @@ describe('paragraphs', () => {
     expect(paragraphsToHtml('x', [ps])).toContain('<h1>Big Title</h1>');
   });
 });
+
+describe('measured search rects', () => {
+  it('places a match by measured width, not character count', () => {
+    // "iiii" is narrow, "WWWW" wide: with real metrics the match sits much further left than 50%.
+    const it0: TextItemLite = { str: 'iiiiWWWW', transform: [10, 0, 0, 10, 0, 0], width: 100, height: 10 };
+    const measure = (s: string) => [...s].reduce((a, c) => a + (c === 'i' ? 1 : 4), 0);
+    const [[r]] = findInItems([it0], 'WWWW', measure);
+    expect(r.x).toBeCloseTo(20);
+    expect(r.w).toBeCloseTo(80);
+    expect(findInItems([it0], 'WWWW')[0][0].x).toBeCloseTo(50);
+  });
+});

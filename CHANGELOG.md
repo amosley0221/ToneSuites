@@ -7,6 +7,12 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Paper: Search & redact now covers exactly the matched words; before, part of the matched text could stay visible after applying redactions.
+- Paper: radio-button choices in PDF forms are now saved, and multiline form fields keep a readable text size.
+- Paper: "Flatten form on save" no longer leaves broken references in the saved PDF.
+- Paper: clicking away from a note or text box finishes it instead of creating an empty one, and Ctrl Z undoes document edits again afterwards.
+- Paper: split and extracted parts save as PDF files (they were saved as .tone).
+- Paper (phone): Zoom, Panels and Save have their own toolbar row so they're always reachable.
 - Sync: documents you saved no longer reload by themselves a minute later with "updated from another device" (the NAS reported the same version in two spellings).
 - Sync: the regular background sync no longer stops after you save a file, so changes from your other devices keep arriving.
 - Sync: a new NAS sync folder is created automatically on the first sync, instead of every upload failing until you pressed Test connection.

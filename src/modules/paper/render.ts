@@ -5,7 +5,7 @@ import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/legacy/build/pdf
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { buildPdf, type Rasterizer } from './apply';
 import { LETTER, type PageRef, type PaperModel, type Rect, type SourceDoc } from './model';
-import type { TextItemLite } from './text';
+import type { Measure, TextItemLite } from './text';
 import { makeViewport, normRot, type ViewBox } from './viewport';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -100,13 +100,24 @@ export function renderPage(canvas: HTMLCanvasElement, model: PaperModel, ref: Pa
   return { promise, cancel: () => { cancelled = true; task?.cancel(); } };
 }
 
-/** Text content of one page (null for blank pages). */
-export async function pageText(model: PaperModel, ref: PageRef): Promise<{ items: TextItemLite[]; raw: unknown } | null> {
+/** Text content of one page (null for blank pages). `measure` uses the browser's metrics for each item's font family. */
+export async function pageText(model: PaperModel, ref: PageRef): Promise<{ items: TextItemLite[]; raw: unknown; measure: Measure } | null> {
   const page = await pdfPage(model, ref);
   if (!page) return null;
   const tc = await page.getTextContent();
   const items = (tc.items as unknown[]).filter((i): i is TextItemLite => typeof (i as TextItemLite).str === 'string');
-  return { items, raw: tc };
+  return { items, raw: tc, measure: canvasMeasure(tc.styles as Record<string, { fontFamily?: string }>) };
+}
+
+let measureCtx: CanvasRenderingContext2D | null = null;
+/** Width of text in the item's font family (pdf.js maps embedded fonts to sans-serif / serif / monospace). */
+export function canvasMeasure(styles: Record<string, { fontFamily?: string }>): Measure {
+  return (s, it) => {
+    measureCtx ??= document.createElement('canvas').getContext('2d');
+    if (!measureCtx) return s.length;
+    measureCtx.font = `100px ${(it.fontName && styles[it.fontName]?.fontFamily) || 'sans-serif'}`;
+    return measureCtx.measureText(s).width;
+  };
 }
 
 /** The pdf.js page proxy (for the text layer). */

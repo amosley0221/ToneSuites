@@ -132,7 +132,8 @@ export interface ModuleApi {
   pickFile: (exts: string[], multiple?: boolean) => Promise<{ name: string; bytes: Uint8Array }[]>;
   saveBytes: (bytes: Uint8Array, filename: string, exts: string[]) => Promise<boolean>;
   /** Open a model of THIS module in a new tab (e.g. Paper › Split). */
-  openNewDoc: (mode: Mode, model: unknown, title: string, convertedFrom?: string) => void;
+  /** `format`: file format a later Save writes (default 'tone'; e.g. 'pdf' for Paper parts). */
+  openNewDoc: (mode: Mode, model: unknown, title: string, convertedFrom?: string, format?: string) => void;
   /** Open bytes in the module that handles `filename`'s extension, in a new tab, linked back to the current doc. */
   openBytesAsDoc: (bytes: Uint8Array, filename: string) => Promise<void>;
   runCommand: (id: string) => void;

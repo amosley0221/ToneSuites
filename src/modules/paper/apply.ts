@@ -2,7 +2,7 @@
 // Pure pdf-lib: runs in node for tests. Redaction rasterizing is injected (needs pdf.js + canvas).
 import {
   BlendMode, LineCapStyle, PDFArray, PDFCheckBox, PDFDict, PDFDocument, PDFDropdown, PDFHexString, PDFName, PDFNumber, PDFOptionList,
-  PDFPage, PDFRadioGroup, PDFRef, PDFStream, PDFString, PDFTextField, StandardFonts, TextAlignment, degrees, rgb,
+  PDFForm, PDFPage, PDFRadioGroup, PDFRef, PDFStream, PDFString, PDFTextField, StandardFonts, TextAlignment, degrees, rgb,
   type PDFFont, type PDFObject, type RGB,
 } from 'pdf-lib';
 import { LETTER, type Edit, type PaperData, type Rect, type SourceDoc } from './model';
@@ -203,9 +203,20 @@ function fillForm(doc: PDFDocument, data: PaperData, warnings: string[]) {
     try {
       const f = form.getFieldMaybe(name);
       if (!f) continue;
-      if (f instanceof PDFTextField) f.setText(String(v ?? ''));
+      if (f instanceof PDFTextField) {
+        // Multiline fields with auto size (0 Tf), or a size too big for the box (pdf-lib writes e.g. 69 Tf when it
+        // creates them), would show one huge line. Use a normal reading size instead.
+        if (f.isMultiline()) {
+          const size = Number(/([\d.]+)\s+Tf/.exec(f.acroField.getDefaultAppearance() ?? '')?.[1] ?? 0);
+          const h = f.acroField.getWidgets()[0]?.getRectangle().height ?? 0;
+          if (!size || (h && size > h / 2)) {
+            try { f.setFontSize(Math.max(6, Math.min(10, h / 2 || 10))); } catch { /* keep auto size */ }
+          }
+        }
+        f.setText(String(v ?? ''));
+      }
       else if (f instanceof PDFCheckBox) (v === true || v === 'true' || v === 'On' || v === 'Yes') ? f.check() : f.uncheck();
-      else if (f instanceof PDFRadioGroup) { if (typeof v === 'string' && v && v !== 'Off') f.select(v); else f.clear(); }
+      else if (f instanceof PDFRadioGroup) selectRadio(form, f, v);
       else if (f instanceof PDFDropdown || f instanceof PDFOptionList) { if (typeof v === 'string' && v) f.select(v); else f.clear(); }
     } catch (e) {
       warnings.push(`Field "${name}": ${e instanceof Error ? e.message : String(e)}`);
@@ -213,6 +224,33 @@ function fillForm(doc: PDFDocument, data: PaperData, warnings: string[]) {
   }
   if (data.flattenForm) {
     try { form.flatten(); } catch (e) { warnings.push(`Flatten failed: ${e instanceof Error ? e.message : String(e)}`); }
+    // pdf-lib deletes the widgets of kid-style fields but leaves their refs in /Annots (dangling objects).
+    dropDanglingAnnots(doc);
+  }
+}
+
+/**
+ * Select a radio option. pdf.js reports the widget's appearance state ("on" value, e.g. "1" or "Choice2"),
+ * while pdf-lib's select() wants the /Opt export value when the field has one — accept either.
+ */
+export function selectRadio(form: PDFForm, f: PDFRadioGroup, v: string | boolean) {
+  if (typeof v !== 'string' || !v || v === 'Off') { f.clear(); return; }
+  if (f.getOptions().includes(v)) { f.select(v); return; }
+  const on = f.acroField.getOnValues().find((n) => n.decodeText() === v);
+  if (!on) throw new Error(`"${v}" isn't one of its options`);
+  f.acroField.setValue(on);
+  form.markFieldAsDirty(f.ref);
+}
+
+/** Remove /Annots entries that point at objects which no longer exist. */
+export function dropDanglingAnnots(doc: PDFDocument) {
+  for (const p of doc.getPages()) {
+    const annots = p.node.Annots();
+    if (!annots) continue;
+    for (let i = annots.size() - 1; i >= 0; i--) {
+      const a = annots.get(i);
+      if (a instanceof PDFRef && !doc.context.lookup(a)) annots.remove(i);
+    }
   }
 }
 

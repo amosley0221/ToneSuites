@@ -1,14 +1,20 @@
 // Pure text helpers over pdf.js text items: search hit rects and paragraph extraction.
 import type { Rect } from './model';
 
-export interface TextItemLite { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean }
+export interface TextItemLite { str: string; transform: number[]; width: number; height: number; hasEOL?: boolean; fontName?: string }
+
+/** Advance width of `s` in any unit (only ratios are used). Lets callers measure with real font metrics. */
+export type Measure = (s: string, item: TextItemLite) => number;
 
 function itemHeight(it: TextItemLite) {
   return it.height || Math.hypot(it.transform[2], it.transform[3]) || 10;
 }
 
-/** Rect (user space) covering characters [s, e) of a text item — proportional approximation. */
-export function itemSliceRect(it: TextItemLite, s: number, e: number): Rect {
+/**
+ * Rect (user space) covering characters [s, e) of a text item. With `measure`, the slice is placed by the
+ * measured width ratio (accurate for proportional fonts — matters for redaction); otherwise by character count.
+ */
+export function itemSliceRect(it: TextItemLite, s: number, e: number, measure?: Measure): Rect {
   const [a, b, , , x, y] = it.transform;
   const h = itemHeight(it);
   const len = Math.max(1, it.str.length);
@@ -20,12 +26,15 @@ export function itemSliceRect(it: TextItemLite, s: number, e: number): Rect {
     return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
   }
   const dir = a < 0 ? -1 : 1;
-  const x0 = x + dir * (it.width * s) / len, x1 = x + dir * (it.width * e) / len;
+  let f0 = s / len, f1 = e / len;
+  const full = measure ? measure(it.str, it) : 0;
+  if (measure && full > 0) { f0 = measure(it.str.slice(0, s), it) / full; f1 = measure(it.str.slice(0, e), it) / full; }
+  const x0 = x + dir * it.width * f0, x1 = x + dir * it.width * f1;
   return { x: Math.min(x0, x1), y: y - h * 0.22, w: Math.abs(x1 - x0), h: h * 1.18 };
 }
 
 /** Case-insensitive search across items. Matches may span adjacent items; returns one rect list per match. */
-export function findInItems(items: TextItemLite[], query: string): Rect[][] {
+export function findInItems(items: TextItemLite[], query: string, measure?: Measure): Rect[][] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   // Concatenate with a separator for EOL items so words across lines still match with a space.
@@ -41,7 +50,7 @@ export function findInItems(items: TextItemLite[], query: string): Rect[][] {
     items.forEach((it, i) => {
       const s = starts[i], e = s + it.str.length;
       const a = Math.max(pos, s), b = Math.min(end, e);
-      if (b > a && it.str.trim()) rects.push(itemSliceRect(it, a - s, b - s));
+      if (b > a && it.str.trim()) rects.push(itemSliceRect(it, a - s, b - s, measure));
     });
     if (rects.length) out.push(rects);
     pos = lower.indexOf(q, end);

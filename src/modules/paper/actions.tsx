@@ -74,7 +74,7 @@ export class PaperActions {
       const ref = this.m.pages[i];
       const t = await pageText(this.m, ref).catch(() => null);
       if (seq !== this.searchSeq) return;
-      if (t) for (const rects of findInItems(t.items, query)) hits.push({ page: ref.id, rects });
+      if (t) for (const rects of findInItems(t.items, query, t.measure)) hits.push({ page: ref.id, rects });
       if (i % 10 === 9) this.m.setUi({ search: { ...this.m.ui.search, hits: [...hits] } });
     }
     const first = hits.findIndex((h) => this.m.pageIndex(h.page) >= this.m.ui.page);
@@ -94,7 +94,7 @@ export class PaperActions {
     if (!hits.length) return;
     const now = Date.now();
     this.commit((m) => {
-      m.edits = [...m.edits, ...hits.flatMap((h) => h.rects.map((r) => ({ id: newId(), page: h.page, created: now, kind: 'redact' as const, rect: { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }, applied: false })))];
+      m.edits = [...m.edits, ...hits.flatMap((h) => h.rects.map((r) => ({ id: newId(), page: h.page, created: now, kind: 'redact' as const, rect: { x: r.x - Math.max(1, r.h * 0.15), y: r.y - 1, w: r.w + 2 * Math.max(1, r.h * 0.15), h: r.h + 2 }, applied: false })))];
     });
     this.api.toast(`Marked ${hits.length} match${hits.length > 1 ? 'es' : ''} for redaction — review, then Apply redactions`);
   };
@@ -191,7 +191,7 @@ export class PaperActions {
       const data = subsetData({ ...this.m.data(), pages }, g);
       const name = groups.length > 1 ? `${base}-${label}${i + 1}.pdf` : `${base}-${label}.pdf`;
       const model = new PaperModel(name, data);
-      this.api.openNewDoc('paper', model, name);
+      this.api.openNewDoc('paper', model, name, undefined, 'pdf');
     });
   };
 
@@ -240,7 +240,7 @@ export class PaperActions {
   };
   createBlankDoc = async () => {
     const model = await blankModel();
-    this.api.openNewDoc('paper', model, 'Untitled');
+    this.api.openNewDoc('paper', model, 'Untitled', undefined, 'pdf');
   };
 }
 

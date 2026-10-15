@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PDFDict, PDFDocument, PDFName, PDFTextField, StandardFonts } from 'pdf-lib';
+import { PDFDict, PDFDocument, PDFName, PDFRef, PDFTextField, StandardFonts } from 'pdf-lib';
 import { buildPdf, createBlankPdf, wrapLines } from './apply';
 import { PaperModel, type Edit, type PaperData } from './model';
 import { blankPage, deletePages, dropTarget, insertAt, movePages, parseRanges, rotatePages, splitAt, splitEvery, subsetData } from './pageops';
@@ -157,6 +157,27 @@ describe('buildPdf', () => {
     const form = doc.getForm();
     expect((form.getField('name') as PDFTextField).getText()).toBe('Ada');
     expect(form.getFields().map((f) => f.getName()).sort()).toEqual(['Sign here', 'name', 'name 2']);
+  });
+
+  it('selects radios by appearance state and flattens without dangling widget refs', async () => {
+    const d0 = await PDFDocument.create();
+    const pg = d0.addPage([600, 800]);
+    const rg = d0.getForm().createRadioGroup('plan');
+    for (const [i, o] of ['basic', 'pro', 'team'].entries()) rg.addOptionToPage(o, pg, { x: 50 + i * 40, y: 600, width: 16, height: 16 });
+    d0.getForm().createTextField('who').addToPage(pg, { x: 50, y: 500, width: 200, height: 20 });
+    const a = await d0.save();
+    const m = PaperModel.fromPdf(a, 'f.pdf', 1);
+    // pdf.js reports the widget's "on" state ('1' for the second option), not the /Opt value.
+    m.mutate((d) => { d.formValues = { plan: '1', who: 'Ada' }; });
+    const res = await buildPdf(m.data());
+    expect(res.warnings).toEqual([]);
+    expect((await PDFDocument.load(res.bytes)).getForm().getRadioGroup('plan').getSelected()).toBe('pro');
+    m.mutate((d) => { d.flattenForm = true; });
+    const flat = await PDFDocument.load((await buildPdf(m.data())).bytes);
+    expect(flat.getForm().getFields().length).toBe(0);
+    const annots = flat.getPage(0).node.Annots();
+    const dangling = (annots?.asArray() ?? []).filter((r) => r instanceof PDFRef && !flat.context.lookup(r));
+    expect(dangling.length).toBe(0);
   });
 
   it('creates a blank Letter PDF', async () => {

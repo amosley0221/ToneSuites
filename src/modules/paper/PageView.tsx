@@ -121,6 +121,13 @@ export const PageView = memo(function PageView({ pageRef, index, zoom, root, reg
   const startDraw = (e: RPointerEvent) => {
     if (e.button !== 0) return;
     e.preventDefault();
+    // preventDefault keeps focus where it was, so finish an open note / text box explicitly.
+    // With the note or text tool, that click only commits the open one (no new empty box).
+    const ae = document.activeElement;
+    if (ae instanceof HTMLElement && (ae.tagName === 'TEXTAREA' || ae.tagName === 'INPUT') && ae.closest('.pp-page')) {
+      ae.blur();
+      if (sub === 'note' || sub === 'text') return;
+    }
     const p = local(e);
     model.setUi({ selected: null, page: index });
     const now = Date.now();

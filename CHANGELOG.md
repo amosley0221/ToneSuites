@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-15
+
 ### Fixed
 - Pixel: Clone stamp copies from the spot you Alt-clicked; double-click closes a polygonal lasso.
 - Pixel: Paste (Ctrl+V) no longer hangs and pastes images copied from other apps.

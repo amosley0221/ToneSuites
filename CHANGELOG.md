@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-10-15
+
 ### New
 - Fonts: Write, Deck and Pixel have a searchable font menu with previews — your own fonts, Tone's fonts and every font installed on your device. Add .ttf/.otf/.woff fonts from any font menu or Settings › Fonts; they're kept in your workspace's Fonts folder and sync to your other devices.
 

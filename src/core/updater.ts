@@ -3,6 +3,7 @@
 // Android: compare with the latest GitHub Release; the APK is installed over the existing app
 // (same package id + same signing key), e.g. through Vault or the direct download link.
 import { RELEASE_REPO } from '@/config';
+import { create } from 'zustand';
 import { appVersion, httpFetch, isTauri, openExternal, osType, relaunch } from './platform';
 
 export interface AvailableUpdate {
@@ -81,4 +82,31 @@ export function changelogFor(changelog: string, version: string): string {
   let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
   if (end < 0) end = lines.length;
   return lines.slice(start + 1, end).join('\n').trim();
+}
+
+// ---------- Shared update state (title-bar badge, Settings › Updates, popup) ----------
+
+interface UpdateState {
+  available: AvailableUpdate | null;
+  checking: boolean;
+  lastChecked: number | null;
+  error: string | null;
+}
+
+export const useUpdates = create<UpdateState>(() => ({ available: null, checking: false, lastChecked: null, error: null }));
+
+/** Check now and record the result. Returns the update (or null). Throws only when `manual`. */
+export async function runUpdateCheck(manual: boolean): Promise<AvailableUpdate | null> {
+  if (useUpdates.getState().checking) return useUpdates.getState().available;
+  useUpdates.setState({ checking: true, error: null });
+  try {
+    const available = await checkForUpdate();
+    useUpdates.setState({ available, checking: false, lastChecked: Date.now() });
+    return available;
+  } catch (e: any) {
+    const error = String(e?.message ?? e);
+    useUpdates.setState({ checking: false, lastChecked: Date.now(), error });
+    if (manual) throw new Error(error);
+    return null;
+  }
 }

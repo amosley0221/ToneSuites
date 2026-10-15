@@ -5,7 +5,7 @@ import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp } from '@/core/store';
 import { setSystemBarTheme, startInsets } from '@/core/insets';
-import { checkForUpdate } from '@/core/updater';
+import { runUpdateCheck, useUpdates } from '@/core/updater';
 import { UPDATE_CHECK_HOURS } from '@/config';
 import { startSyncLoop } from '@/storage/sync';
 import { CommandPalette } from './CommandPalette';
@@ -20,13 +20,22 @@ import { TitleBar } from './TitleBar';
 
 const push = (r: (close: () => void) => React.ReactNode) => useApp.getState().pushDialog(r);
 
+function showUpdate() {
+  const u = useUpdates.getState().available;
+  if (u) push((close) => <UpdateDialog update={u} close={close} />);
+}
+
 async function checkUpdates(manual: boolean) {
   try {
-    const u = await checkForUpdate();
+    const u = await runUpdateCheck(manual);
+    const { s, update } = useSettings.getState();
     if (u) {
-      const silent = useSettings.getState().s.updateMode === 'silent' && u.kind === 'desktop' && !manual;
-      if (silent) await u.install();
-      else push((close) => <UpdateDialog update={u} close={close} />);
+      if (s.updateMode === 'silent' && u.kind === 'desktop' && !manual) { await u.install(); return; }
+      // Pop up once per new version (or whenever asked); afterwards the title-bar badge reminds.
+      if (manual || s.updatePromptedVersion !== u.version) {
+        update({ updatePromptedVersion: u.version });
+        showUpdate();
+      }
     } else if (manual) useApp.getState().toast(isTauri ? `You're on the latest version (${__APP_VERSION__}).` : 'Updates are delivered to the installed app.');
   } catch (e: any) {
     if (manual) useApp.getState().toast(`Update check failed: ${e?.message ?? e}`, 'error');
@@ -46,6 +55,10 @@ registerGlobal(coreHandlers({
   whatsNew: () => push((close) => <WhatsNew close={close} version={__APP_VERSION__} />),
   checkUpdates: () => void checkUpdates(true),
 }));
+registerGlobal({
+  'app.showUpdate': () => showUpdate(),
+  'app.settings.updates': () => push((close) => <SettingsDialog close={close} initial="Updates" />),
+});
 registerGlobal({ 'app.settings.sync': () => push((close) => <SettingsDialog close={close} initial="Sync" />) });
 
 /** Files the OS asked us to open ("Open with", double-click, a second launch). */

@@ -4,6 +4,7 @@ import { closeDocument } from '@/core/documents';
 import { isTauri, osType, windowAction } from '@/core/platform';
 import { useSettings } from '@/core/settings';
 import { useApp } from '@/core/store';
+import { useUpdates } from '@/core/updater';
 import { MODULE_META } from '@/modules/meta';
 import { Kbd, Mark } from '@/ui';
 
@@ -13,6 +14,7 @@ export function TitleBar({ compact }: { compact: boolean }) {
   const setActive = useApp((s) => s.setActive);
   const moveDoc = useApp((s) => s.moveDoc);
   const theme = useSettings((s) => s.s.theme);
+  const update = useUpdates((u) => u.available);
   const [os, setOs] = useState<string>('web');
   const [drag, setDrag] = useState<number | null>(null);
   useEffect(() => { void osType().then(setOs); }, []);
@@ -53,6 +55,12 @@ export function TitleBar({ compact }: { compact: boolean }) {
         {docs.map((d, i) => tab(d.id, MODULE_META[d.mode].mark, d.title, d.dirty, i))}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 8px', flexShrink: 0 }}>
+        {update && (
+          <div onClick={() => void runCommand('app.showUpdate')} title={`Tone Suites ${update.version} is available — see what's new`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--accent)', color: 'var(--on-accent)', cursor: 'pointer', font: 'var(--type-mono)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+            ↑{compact ? '' : ` Update ${update.version}`}
+          </div>
+        )}
         <div onClick={() => void runCommand('app.palette')} className="hov-ink hov-border"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', border: '1px solid var(--line)', color: 'var(--mute)', cursor: 'pointer', font: 'var(--type-mono)' }}>
           {compact ? '⌕' : <>Search or command <Kbd>{displayShortcut('Ctrl K')}</Kbd></>}
@@ -61,7 +69,10 @@ export function TitleBar({ compact }: { compact: boolean }) {
           style={{ padding: '6px 8px', cursor: 'pointer', color: 'var(--mute)', font: 'var(--type-mono)' }}>
           ◐{!compact && (theme === 'dark' ? ' Dark' : ' Light')}
         </div>
-        <div onClick={() => void runCommand('app.settings')} className="hov-ink" title="Settings" style={{ padding: '6px 8px', cursor: 'pointer', color: 'var(--mute)' }}>⚙</div>
+        <div onClick={() => void runCommand(update ? 'app.settings.updates' : 'app.settings')} className="hov-ink" title={update ? 'Settings — update available' : 'Settings'}
+          style={{ padding: '6px 8px', cursor: 'pointer', color: 'var(--mute)', position: 'relative' }}>
+          ⚙{update && <span style={{ position: 'absolute', top: 5, right: 4, width: 6, height: 6, background: 'var(--accent)' }} />}
+        </div>
       </div>
       {desktopChrome && (
         <div style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0 }}>

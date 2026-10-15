@@ -48,6 +48,8 @@ export interface Settings {
   providers: ProviderConfig[];
   recents: RecentEntry[];
   lastSeenVersion: string;
+  /** Newest update version we've already shown the popup for (the title-bar badge stays regardless). */
+  updatePromptedVersion: string;
   modulesEnabled: Record<Mode, boolean>;
   /** Default export options per format id */
   defaultUnits: 'px' | 'in' | 'cm';
@@ -82,6 +84,7 @@ function defaults(): Settings {
     providers: [],
     recents: [],
     lastSeenVersion: '',
+    updatePromptedVersion: '',
     modulesEnabled: { pixel: true, cells: true, deck: true, write: true, paper: true },
     defaultUnits: 'px',
     restoreSession: true,

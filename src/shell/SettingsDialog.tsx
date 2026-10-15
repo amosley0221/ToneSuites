@@ -4,25 +4,30 @@ import { isTauri, pickOpenPaths, uid } from '@/core/platform';
 import { ACCENTS, useSettings, type ProviderConfig } from '@/core/settings';
 import { useApp } from '@/core/store';
 import type { Mode, ModuleDef } from '@/core/types';
+import { runCommand } from '@/core/commands';
+import { runUpdateCheck, useUpdates } from '@/core/updater';
 import { connectGoogleDrive } from '@/storage/gdrive';
+import { relTime } from './format';
 import { webdavBrowseUrl } from '@/storage/webdav';
 import { makeProvider, requestSync } from '@/storage/sync';
 import { loadModule, MODULE_META } from '@/modules/meta';
 import { Badge, Button, Dialog, DialogNav, Eyebrow, FormRow, Input, Segmented, Select, Switch } from '@/ui';
 
-const TABS = ['General', 'Appearance', 'Shortcuts', 'Sync', 'Modules', 'Formats'] as const;
+const TABS = ['General', 'Appearance', 'Shortcuts', 'Sync', 'Updates', 'Modules', 'Formats'] as const;
 type Tab = (typeof TABS)[number];
 
 export function SettingsDialog({ close, initial }: { close: () => void; initial?: string }) {
   const [tab, setTab] = useState<Tab>((TABS as readonly string[]).includes(initial ?? '') ? (initial as Tab) : 'General');
+  const hasUpdate = useUpdates((u) => !!u.available);
   return (
     <Dialog title="Settings" subtitle={`Tone Suites ${__APP_VERSION__}`} width={860} height={580} onClose={close}>
-      <DialogNav items={TABS} value={tab} onChange={setTab} />
+      <DialogNav items={TABS.map((t) => ({ value: t, label: t, hint: t === 'Updates' && hasUpdate ? <span style={{ color: 'var(--accent)' }}>NEW</span> : undefined }))} value={tab} onChange={setTab} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
         {tab === 'General' && <General />}
         {tab === 'Appearance' && <Appearance />}
         {tab === 'Shortcuts' && <Shortcuts />}
         {tab === 'Sync' && <Sync />}
+        {tab === 'Updates' && <Updates />}
         {tab === 'Modules' && <Modules />}
         {tab === 'Formats' && <Formats />}
       </div>
@@ -47,11 +52,44 @@ function General() {
       <Eyebrow style={{ marginTop: 22 }}>Documents</Eyebrow>
       <FormRow label="Autosave every"><Select value={String(s.autosaveSeconds)} options={[{ value: '0', label: 'Off' }, { value: '5', label: '5 seconds' }, { value: '30', label: '30 seconds' }, { value: '60', label: '1 minute' }]} onChange={(v) => update({ autosaveSeconds: Number(v) })} /></FormRow>
       <FormRow label="Reopen my tabs on launch"><Switch on={s.restoreSession} onChange={(v) => update({ restoreSession: v })} /></FormRow>
-      <Eyebrow style={{ marginTop: 22 }}>Updates</Eyebrow>
-      <FormRow label="When an update is available">
+    </div>
+  );
+}
+
+function Updates() {
+  const { s, update } = useSettings();
+  const { available, checking, lastChecked, error } = useUpdates();
+  const check = () => void runUpdateCheck(true).catch(() => { /* shown below via error */ });
+  return (
+    <div>
+      {available ? (
+        <div style={{ border: '1px solid var(--accent)', background: 'var(--sel)', padding: 14, marginBottom: 14 }}>
+          <div style={{ fontWeight: 800 }}>Tone Suites {available.version} is available</div>
+          <div style={{ font: 'var(--type-small)', color: 'var(--mute)', margin: '4px 0 10px' }}>
+            You have {__APP_VERSION__}. {available.kind === 'android' ? 'Install it through Vault (or download it here) — it installs over this version.' : 'It installs in place; your files and settings stay.'}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="primary" onClick={() => void runCommand('app.showUpdate')}>{available.kind === 'android' ? 'See notes & download' : 'See notes & install'}</Button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ border: '1px solid var(--line)', padding: 14, marginBottom: 14, background: 'var(--bg0)' }}>
+          <div style={{ fontWeight: 800 }}>{checking ? 'Checking for updates…' : error ? 'Couldn\'t check for updates' : lastChecked ? 'You\'re up to date' : 'Not checked yet'}</div>
+          <div style={{ font: 'var(--type-small)', color: error ? 'var(--negative)' : 'var(--mute)', marginTop: 4 }}>
+            {error ?? `Tone Suites ${__APP_VERSION__}`}
+          </div>
+        </div>
+      )}
+      <FormRow label="Current version"><span style={{ font: 'var(--type-mono)' }}>{__APP_VERSION__}</span></FormRow>
+      <FormRow label="Last checked">
+        <span style={{ font: 'var(--type-mono)', color: 'var(--mute)' }}>{lastChecked ? relTime(lastChecked) : '—'}</span>
+        <Button size="sm" disabled={checking} onClick={check}>{checking ? 'Checking…' : 'Check now'}</Button>
+      </FormRow>
+      <FormRow label="When an update is available (Windows / macOS)">
         <Segmented value={s.updateMode === 'prompt' ? 'Ask to restart' : 'Install on next launch'} options={['Ask to restart', 'Install on next launch']} onChange={(v) => update({ updateMode: v === 'Ask to restart' ? 'prompt' : 'silent' })} />
       </FormRow>
-      <FormRow label="Current version"><span style={{ font: 'var(--type-mono)' }}>{__APP_VERSION__}</span></FormRow>
+      <FormRow label="Release notes for this version"><Button size="sm" onClick={() => void runCommand('app.whatsNew')}>What's new</Button></FormRow>
+      <div className="empty-hint" style={{ marginTop: 8 }}>Tone checks when it starts and every few hours. A new version shows a one-time popup and stays in the title bar until installed.</div>
     </div>
   );
 }

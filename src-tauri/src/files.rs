@@ -19,6 +19,8 @@ pub fn files_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<String> {
         .collect()
 }
 
+// Only called from desktop paths (second launch, macOS Opened); Android/iOS use the startup queue.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn queue(app: &AppHandle, files: Vec<String>) {
     if files.is_empty() {
         return;
@@ -27,6 +29,8 @@ pub fn queue(app: &AppHandle, files: Vec<String>) {
         state.0.lock().unwrap().extend(files);
     }
     let _ = app.emit("open-files", ());
+    // Window focus/restore only exists on desktop.
+    #[cfg(desktop)]
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.set_focus();

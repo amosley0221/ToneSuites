@@ -334,7 +334,7 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
       for (let c = Math.max(c0, filt.range.c0); c <= Math.min(c1, filt.range.c1); c++) {
         const x = X(g, c) + g.cols.size(c) - 18;
         const y = Y(g, filt.range.r0) + (g.rows.size(filt.range.r0) - 14) / 2;
-        const active = (filt.hidden[c]?.length ?? 0) > 0;
+        const active = (filt.hidden[c]?.length ?? 0) > 0 || !!filt.contains?.[c]?.trim();
         ctx.fillStyle = active ? t.accent : t.bg2;
         ctx.fillRect(x, y, 14, 14);
         ctx.strokeStyle = active ? t.accent : t.line;

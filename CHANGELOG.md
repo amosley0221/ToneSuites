@@ -6,6 +6,9 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### Fixed
+- Cells: the column filter now filters the sheet as you type, shows how many rows match (or "No matches"), and finds values regardless of capitals, spaces or thousands separators (75568 finds 75,568). Cancel puts the previous filter back; OK keeps it, and it's saved with the file.
+
 ## [0.1.4] - 2026-10-15
 
 ### New

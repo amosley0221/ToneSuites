@@ -391,7 +391,7 @@ export function cellsCommands(getModel: () => Workbook | undefined, api: ModuleA
       if (g.r1 <= g.r0 && wb.isEmpty(s, g.r0, g.c0)) { api.toast('Select a table with a header row to filter', 'error'); return; }
       wb.structural(() => { s.filter = { range: g, hidden: {} }; });
     }),
-    'cells.data.clearFilter': run((wb, s) => { if (s.filter) wb.structural(() => { s.filter!.hidden = {}; }); }),
+    'cells.data.clearFilter': run((wb, s) => { if (s.filter) wb.structural(() => { s.filter!.hidden = {}; s.filter!.contains = {}; }); }),
     'cells.data.removeDuplicates': removeDuplicates,
     'cells.data.trim': onSel((wb, s, g) => {
       const items = wb.cellsIn(s, wb.clampToUsed(s, g))

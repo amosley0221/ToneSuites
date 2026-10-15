@@ -54,6 +54,13 @@ export interface AutoFilter {
   range: Range;
   /** Absolute column → display values that are filtered out. */
   hidden: Record<number, string[]>;
+  /** Absolute column → "contains" text typed in the filter search (rows that don't match are hidden). */
+  contains?: Record<number, string>;
+}
+
+/** Normalise text for filter search: case-insensitive, ignoring spaces and thousands separators. */
+export function filterKey(s: string): string {
+  return s.toLowerCase().replace(/[\s,]/g, '');
 }
 
 export interface Selection { r: number; c: number; range: Range }
@@ -278,6 +285,13 @@ export class Workbook {
     return s._bounds;
   }
 
+  /** Does the cell's shown text or raw input contain the (normalised) query? */
+  matchesQuery(s: Sheet, r: number, c: number, q: string): boolean {
+    if (filterKey(this.display(s, r, c).text).includes(q)) return true;
+    const raw = s.cells.get(cellKey(r, c))?.v ?? '';
+    return filterKey(raw).includes(q);
+  }
+
   /** Rows hidden by the sheet's AutoFilter. */
   hiddenRows(s: Sheet): Set<number> {
     if (!s._hidden) {
@@ -285,11 +299,11 @@ export class Workbook {
       const f = s.filter;
       if (f) {
         const cols = Object.entries(f.hidden).filter(([, v]) => v.length).map(([c, v]) => [+c, new Set(v)] as const);
-        if (cols.length) {
+        const queries = Object.entries(f.contains ?? {}).filter(([, q]) => filterKey(q)).map(([c, q]) => [+c, filterKey(q)] as const);
+        if (cols.length || queries.length) {
           for (let r = f.range.r0 + 1; r <= f.range.r1; r++) {
-            for (const [c, vals] of cols) {
-              if (vals.has(this.display(s, r, c).text)) { set.add(r); break; }
-            }
+            if (cols.some(([c, vals]) => vals.has(this.display(s, r, c).text))) { set.add(r); continue; }
+            if (queries.some(([c, q]) => !this.matchesQuery(s, r, c, q))) set.add(r);
           }
         }
       }
@@ -690,7 +704,10 @@ export class Workbook {
       this.hf.addColumns(this.hfId(s), [at, count]);
       s.cells = this.remap(s.cells, (k) => { const c = keyCol(k); return c >= at ? cellKey(keyRow(k), c + count) : k; });
       s.colWidths = this.remap(s.colWidths, (c) => (c >= at ? c + count : c));
-      if (s.filter) s.filter.hidden = shiftKeys(s.filter.hidden, (c) => (c >= at ? c + count : c));
+      if (s.filter) {
+        s.filter.hidden = shiftKeys(s.filter.hidden, (c) => (c >= at ? c + count : c));
+        if (s.filter.contains) s.filter.contains = shiftKeys(s.filter.contains, (c) => (c >= at ? c + count : c));
+      }
       this.shiftRanges(s, (g) => shiftRangeInsert(g, 'col', at, count));
       this.refreshFormulas();
     });
@@ -701,7 +718,10 @@ export class Workbook {
       this.hf.removeColumns(this.hfId(s), [at, count]);
       s.cells = this.remap(s.cells, (k) => { const c = keyCol(k); return c < at ? k : c < at + count ? null : cellKey(keyRow(k), c - count); });
       s.colWidths = this.remap(s.colWidths, (c) => (c < at ? c : c < at + count ? null : c - count));
-      if (s.filter) s.filter.hidden = shiftKeys(s.filter.hidden, (c) => (c < at ? c : c < at + count ? null : c - count));
+      if (s.filter) {
+        s.filter.hidden = shiftKeys(s.filter.hidden, (c) => (c < at ? c : c < at + count ? null : c - count));
+        if (s.filter.contains) s.filter.contains = shiftKeys(s.filter.contains, (c) => (c < at ? c : c < at + count ? null : c - count));
+      }
       this.shiftRanges(s, (g) => shiftRangeDelete(g, 'col', at, count));
       this.refreshFormulas();
     });
@@ -851,7 +871,7 @@ export interface SheetJSON {
   freeze: { rows: number; cols: number };
   charts: ChartDef[];
   condFormats: CondRule[];
-  filters: { range: string; hidden: Record<string, string[]> } | null;
+  filters: { range: string; hidden: Record<string, string[]>; contains?: Record<string, string> } | null;
   showGrid?: boolean;
 }
 export interface WorkbookJSON { formatVersion: 1; activeSheet: number; sheets: SheetJSON[] }
@@ -868,7 +888,7 @@ export function sheetToJSON(s: Sheet): SheetJSON {
     colWidths: Object.fromEntries(s.colWidths), rowHeights: Object.fromEntries(s.rowHeights),
     merges: s.merges.map(rangeToA1), freeze: { ...s.freeze },
     charts: s.charts.map((c) => ({ ...c })), condFormats: s.condFormats.map((c) => ({ ...c })),
-    filters: s.filter ? { range: rangeToA1(s.filter.range), hidden: { ...s.filter.hidden } } : null,
+    filters: s.filter ? { range: rangeToA1(s.filter.range), hidden: { ...s.filter.hidden }, contains: { ...(s.filter.contains ?? {}) } } : null,
     showGrid: s.showGrid,
   };
 }
@@ -887,7 +907,11 @@ export function sheetFromJSON(j: SheetJSON): Sheet {
   s.charts = (j.charts ?? []).map((c) => ({ ...c }));
   s.condFormats = (j.condFormats ?? []).map((c) => ({ ...c }));
   const fr = j.filters && parseRange(j.filters.range);
-  s.filter = fr ? { range: fr, hidden: Object.fromEntries(Object.entries(j.filters!.hidden ?? {}).map(([k, v]) => [+k, v])) } : null;
+  s.filter = fr ? {
+    range: fr,
+    hidden: Object.fromEntries(Object.entries(j.filters!.hidden ?? {}).map(([k, v]) => [+k, v])),
+    contains: Object.fromEntries(Object.entries(j.filters!.contains ?? {}).map(([k, v]) => [+k, v])),
+  } : null;
   s.showGrid = j.showGrid !== false;
   return s;
 }

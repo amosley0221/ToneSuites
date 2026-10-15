@@ -207,3 +207,39 @@ describe('exports', () => {
     expect(html).toContain('#DIV/0!');
   });
 });
+
+describe('autofilter contains search', () => {
+  const setup = () => {
+    const wb = new Workbook();
+    const s = wb.sheets[0];
+    wb.setInputs(s, [
+      { r: 0, c: 0, v: 'Worker ID' }, { r: 0, c: 1, v: 'Name' },
+      { r: 1, c: 0, v: '1006123' }, { r: 1, c: 1, v: 'Ann' },
+      { r: 2, c: 0, v: '75568' }, { r: 2, c: 1, v: 'Antonio' },
+      { r: 3, c: 0, v: '1007556' }, { r: 3, c: 1, v: 'Bo' },
+    ]);
+    s.filter = { range: { r0: 0, c0: 0, r1: 3, c1: 1 }, hidden: {}, contains: {} };
+    return { wb, s };
+  };
+  it('hides rows that do not contain the query', () => {
+    const { wb, s } = setup();
+    s.filter!.contains = { 0: '75568' };
+    s._hidden = undefined;
+    expect([...wb.hiddenRows(s)].sort()).toEqual([1, 3]);
+  });
+  it('matches ignoring case, spaces and thousands separators', () => {
+    const { wb, s } = setup();
+    s.filter!.contains = { 1: ' ANTO ' };
+    s._hidden = undefined;
+    expect([...wb.hiddenRows(s)].sort()).toEqual([1, 3]);
+    s.filter!.contains = { 0: '75,568' };
+    s._hidden = undefined;
+    expect([...wb.hiddenRows(s)].sort()).toEqual([1, 3]);
+  });
+  it('round-trips through the saved workbook', () => {
+    const { wb, s } = setup();
+    s.filter!.contains = { 0: '755' };
+    const back = loadWorkbook(workbookToJSON(wb));
+    expect(back.sheets[0].filter?.contains).toEqual({ 0: '755' });
+  });
+});

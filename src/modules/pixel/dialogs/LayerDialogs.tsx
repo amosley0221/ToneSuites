@@ -5,7 +5,7 @@ import { canvasAlphaToMask, maskToCanvas, newCanvas, ctx2d } from '../engine/can
 import { defaultStyles, type Layer, type LayerStyles, type PixelDoc } from '../engine/doc';
 import { featherMask, invertMask } from '../engine/mask';
 import { applyMask } from '../engine/ops';
-import { CanvasThumb, Check, ColorSwatch, Label, Planned } from '../editor/ui';
+import { CanvasThumb, Check, ColorSwatch, Label, Planned, useEnterKey } from '../editor/ui';
 
 export function LayerPropsDialog({ doc, layer, onClose }: { doc: PixelDoc; layer: Layer; onClose: () => void }) {
   const orig = useRef({ blend: layer.blend, opacity: layer.opacity, name: layer.name, mask: layer.mask }).current;
@@ -26,6 +26,7 @@ export function LayerPropsDialog({ doc, layer, onClose }: { doc: PixelDoc; layer
     doc.commit('Layer properties');
     onClose();
   };
+  useEnterKey(ok);
   const invert = () => {
     if (!layer.mask) return;
     layer.mask = { ...layer.mask, canvas: maskToCanvas(invertMask(canvasAlphaToMask(layer.mask.canvas))) };
@@ -40,7 +41,7 @@ export function LayerPropsDialog({ doc, layer, onClose }: { doc: PixelDoc; layer
       <div style={{ flex: 1, padding: 18, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'auto', font: 'var(--type-small)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ color: 'var(--mute)', width: 60 }}>Name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); }}
+          <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.stopPropagation()}
             style={{ flex: 1, padding: '5px 8px', background: 'var(--bg0)', border: '1px solid var(--line)', color: 'var(--ink)', outline: 'none', font: 'var(--type-small)' }} />
         </div>
         <div>
@@ -129,6 +130,7 @@ export function LayerStyleDialog({ doc, layer, initial = 'dropShadow', onClose }
     doc.commit('Layer style');
     onClose();
   };
+  useEnterKey(ok);
   const upd = <K extends keyof LayerStyles>(k: K, patch: Partial<LayerStyles[K]>) => setSt({ ...st, [k]: { ...st[k], ...patch } });
   const eff = STYLE_EFFECTS.find((e) => e.id === sel)!;
   const blendOpts = BLEND_MODES.map((b) => ({ value: b.id, label: b.label }));

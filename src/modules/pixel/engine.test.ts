@@ -281,3 +281,29 @@ describe('geometry & image size math', () => {
     expect(back).toEqual([255, 90, 31]);
   });
 });
+
+describe('regressions (QA)', () => {
+  it('clone stamp samples the source at p - (start - source)', async () => {
+    const { cloneSourceOrigin } = await import('./engine/paint');
+    // source point (250,200), stroke starts at (300,80): painting at (310,80) must copy source pixel (260,200)
+    const o = cloneSourceOrigin(0, 0, 300 - 250, 80 - 200, 0, 0);
+    // a source pixel at s lands at s + o in target space
+    expect([260 + o.x, 200 + o.y]).toEqual([310, 80]);
+  });
+
+  it('guides are part of undo history', async () => {
+    const { PixelDoc } = await import('./engine/doc');
+    const doc = new PixelDoc(10, 10);
+    doc.resetHistory('Open');
+    doc.guides = [{ axis: 'v', pos: 5 }];
+    doc.commit('New guide');
+    doc.guides = [];
+    doc.commit('Clear guides');
+    doc.undo();
+    expect(doc.guides).toEqual([{ axis: 'v', pos: 5 }]);
+    doc.undo();
+    expect(doc.guides).toEqual([]);
+    doc.redo();
+    expect(doc.guides).toEqual([{ axis: 'v', pos: 5 }]);
+  });
+});

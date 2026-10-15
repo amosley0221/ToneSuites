@@ -14,7 +14,7 @@ import { contentBounds } from './engine/canvas';
 import { rerender } from './engine/render';
 import { AdjustDialog } from './dialogs/AdjustDialog';
 import { FilterGalleryDialog, runFilter } from './dialogs/FilterGallery';
-import { ImportPlaceDialog, placeAll, readClipboardImages } from './dialogs/ImportPlace';
+import { ImportPlaceDialog, pasteCanvases, placeAll, readClipboardImages } from './dialogs/ImportPlace';
 import { LayerPropsDialog, LayerStyleDialog } from './dialogs/LayerDialogs';
 import { CanvasSizeDialog, ImageSizeDialog } from './dialogs/SizeDialogs';
 import {
@@ -72,15 +72,8 @@ export function commands(getModel: () => PixelDoc | undefined, api: ModuleApi): 
   edit('pixel.edit.cut', async (doc) => { pre(doc); const c = ops.copyPixels(doc, false); ops.clearPixels(doc, 'Cut'); await toSystemClipboard(c.canvas); });
   const paste = (mode: 'center' | 'inPlace' | 'into') => async (doc: PixelDoc) => {
     pre(doc);
-    const internal = ops.getInternalClip();
-    const sys = await readClipboardImages();
-    const c = sys[0] ?? internal?.canvas;
-    if (!c) throw new UserError('Nothing to paste — copy an image first');
-    const fromUs = internal && (sys.length === 0 || (sys[0].width === internal.canvas.width && sys[0].height === internal.canvas.height));
-    const pos = mode !== 'center' && fromUs ? { x: internal!.x, y: internal!.y } : {};
     if (mode === 'into' && !doc.selection) throw new UserError('Make a selection to paste into');
-    ops.placeCanvas(doc, c, ops.nextLayerName(doc), { ...pos, into: mode === 'into' });
-    doc.commit(mode === 'into' ? 'Paste into' : 'Paste');
+    pasteCanvases(doc, await readClipboardImages(), mode);
   };
   edit('pixel.edit.paste', paste('center'));
   edit('pixel.edit.pasteInPlace', paste('inPlace'));
@@ -349,7 +342,7 @@ export function commands(getModel: () => PixelDoc | undefined, api: ModuleApi): 
   panel('pixel.window.layers', 'layers');
   panel('pixel.window.paths', 'paths');
   panel('pixel.window.properties', 'props');
-  dialog('pixel.window.styles', (doc, close) => <LayerStyleDialog doc={doc} layer={doc.active!} onClose={close} />, needLayer);
+  dialog('pixel.window.styles', (doc, close) => <LayerStyleDialog doc={doc} layer={doc.active!} initial="blending" onClose={close} />, needLayer);
   view('pixel.window.options', (doc) => { doc.ui.showOptions = !doc.ui.showOptions; });
   view('pixel.window.tools', (doc) => { doc.ui.showTools = !doc.ui.showTools; });
   view('pixel.window.ws.essentials', () => {});

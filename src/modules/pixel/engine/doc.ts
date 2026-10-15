@@ -100,6 +100,7 @@ interface Snapshot {
   activeId: string | null;
   selection: Mask | null;
   channels: Channel[];
+  guides: Guide[];
 }
 export interface HistoryEntry { label: string; time: number; state: Snapshot }
 
@@ -372,7 +373,7 @@ export class PixelDoc {
     }
     return {
       width: this.width, height: this.height, layers: this.layers.map(cloneLayer), activeId: this.activeId,
-      selection: this.selection, channels: [...this.channels],
+      selection: this.selection, channels: [...this.channels], guides: [...this.guides],
     };
   }
 
@@ -383,6 +384,7 @@ export class PixelDoc {
     this.activeId = s.activeId;
     this.selection = s.selection;
     this.channels = [...s.channels];
+    this.guides = [...s.guides];
   }
 
   /** Reset history to a single base state (after open / new). */

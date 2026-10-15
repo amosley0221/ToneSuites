@@ -6,7 +6,7 @@ import { getImg, maskToCanvas } from '../engine/canvas';
 import type { Layer, PixelDoc } from '../engine/doc';
 import { histogram } from '../engine/img';
 import { addAdjustmentLayer, applyAdjustDestructive, clearPreview, previewPixels } from '../engine/ops';
-import { Check, ColorSwatch, Label } from '../editor/ui';
+import { Check, ColorSwatch, Label, useEnterKey } from '../editor/ui';
 
 type Mode = 'pixels' | 'newLayer' | 'editLayer';
 
@@ -21,9 +21,11 @@ export function AdjustDialog({ doc, initial, mode, layer, onClose }: { doc: Pixe
   const title = ADJUST_NAMES[spec.type];
   // New adjustment layers are inserted right away (uncommitted) so the preview is the real composite.
   const newLayer = useRef<Layer | null>(null);
+  // The dialog host may re-render us with a fresh `initial` object; only the first one counts.
+  const init = useRef(initial).current;
   useEffect(() => {
     if (mode !== 'newLayer') return;
-    const l = doc.makeLayer('adjustment', ADJUST_NAMES[initial.type], { adjust: initial });
+    const l = doc.makeLayer('adjustment', ADJUST_NAMES[init.type], { adjust: init });
     if (doc.selection) l.mask = { canvas: maskToCanvas(doc.selection), x: 0, y: 0, enabled: true };
     doc.addLayer(l);
     newLayer.current = l;
@@ -36,7 +38,7 @@ export function AdjustDialog({ doc, initial, mode, layer, onClose }: { doc: Pixe
       }
       if (newLayer.current === l) newLayer.current = null;
     };
-  }, [doc, mode, initial]);
+  }, [doc, mode, init]);
 
   useEffect(() => {
     if (!preview) { clearPreview(doc); if (newLayer.current) { newLayer.current.visible = false; doc.repaint(); } return; }
@@ -65,15 +67,18 @@ export function AdjustDialog({ doc, initial, mode, layer, onClose }: { doc: Pixe
       onClose();
     } catch (e) { setError((e as Error).message); }
   };
+  useEnterKey(ok, !error);
   const asLayer = () => { clearPreview(doc); addAdjustmentLayer(doc, spec); onClose(); };
   const target = mode === 'pixels' ? `Layer: ${doc.active?.name ?? '—'}` : 'Adjustment layer';
 
   return (
     <Dialog title={title} subtitle={target} width={spec.type === 'curves' || spec.type === 'levels' ? 720 : 560} height={spec.type === 'curves' ? 480 : 'auto'} onClose={cancel}>
-      <div style={{ flex: 1, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, overflow: 'auto', font: 'var(--type-small)' }}>
+      {/* wraps to one column on narrow (phone) screens */}
+      <div style={{ flex: 1, display: 'flex', flexWrap: 'wrap', overflow: 'auto', minWidth: 0 }}>
+      <div style={{ flex: '1 1 300px', minWidth: 0, padding: 18, display: 'flex', flexDirection: 'column', gap: 14, font: 'var(--type-small)' }}>
         <Controls doc={doc} spec={spec} set={setSpec} />
       </div>
-      <div style={{ width: 220, borderLeft: '1px solid var(--line)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12, flexShrink: 0 }}>
+      <div style={{ flex: '1 0 220px', maxWidth: '100%', borderLeft: '1px solid var(--line)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {spec.type === 'curves' && (
           <div>
             <Label>Presets</Label>
@@ -91,6 +96,7 @@ export function AdjustDialog({ doc, initial, mode, layer, onClose }: { doc: Pixe
         <Button onClick={cancel} style={{ justifyContent: 'center' }}>Cancel</Button>
         {mode === 'pixels' && <Button onClick={asLayer} style={{ justifyContent: 'center' }}>Apply as layer</Button>}
         <Button variant="primary" onClick={ok} disabled={!!error} style={{ justifyContent: 'center' }}>{mode === 'pixels' ? 'Apply' : 'OK'}</Button>
+      </div>
       </div>
     </Dialog>
   );
@@ -231,7 +237,7 @@ function Curves({ doc, spec, set }: { doc: PixelDoc; spec: Extract<AdjustSpec, {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <Segmented value={ch === 'rgb' ? 'RGB' : ch === 'r' ? 'Red' : ch === 'g' ? 'Green' : 'Blue'} options={['RGB', 'Red', 'Green', 'Blue'] as const}
         onChange={(v) => { setCh(v === 'RGB' ? 'rgb' : v === 'Red' ? 'r' : v === 'Green' ? 'g' : 'b'); setSel(0); }} />
-      <svg ref={svg} viewBox="0 0 300 300" onPointerDown={down} style={{ width: 300, height: 300, background: 'var(--bg0)', border: '1px solid var(--line)', touchAction: 'none', cursor: 'crosshair' }}>
+      <svg ref={svg} viewBox="0 0 300 300" onPointerDown={down} style={{ width: '100%', maxWidth: 300, aspectRatio: '1', height: 'auto', background: 'var(--bg0)', border: '1px solid var(--line)', touchAction: 'none', cursor: 'crosshair' }}>
         {[75, 150, 225].map((v) => <g key={v}><line x1={v} y1={0} x2={v} y2={300} stroke="var(--line)" /><line x1={0} y1={v} x2={300} y2={v} stroke="var(--line)" /></g>)}
         {showHist && <path d={`M0 300 ${Array.from(hist).map((v, i) => `L${(i / 255) * 300} ${300 - (Math.sqrt(v) / Math.sqrt(hmax)) * 280}`).join(' ')} L300 300 Z`} fill="var(--mute)" opacity={0.25} />}
         <path d="M0 300 L300 0" stroke="var(--mute)" strokeDasharray="4 4" fill="none" />

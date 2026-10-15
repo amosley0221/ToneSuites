@@ -10,6 +10,8 @@ import { ToolController } from './controller';
 import { Inspector } from './Inspector';
 import { Viewport, type ViewApi } from './Viewport';
 import { DropMenu } from './ui';
+import { imagesFromDataTransfer, pasteCanvases } from '../dialogs/ImportPlace';
+import { UserError } from '../engine/ops';
 
 export function Editor({ model: doc, onChange, compact, api }: EditorProps<PixelDoc>) {
   useSyncExternalStore(doc.subscribe, doc.getVersion);
@@ -49,7 +51,7 @@ export function Editor({ model: doc, onChange, compact, api }: EditorProps<Pixel
   useEffect(() => {
     doc.onCommit = onChange;
     doc.editor = {
-      startTransform: (o) => ctl.startTransform(!!o?.placed),
+      startTransform: () => ctl.startTransform(),
       commitTransient: () => { finishText(); ctl.commitAll(); },
       applyTransform: (fn) => {
         if (!ctl.startTransform()) return;
@@ -138,6 +140,34 @@ export function Editor({ model: doc, onChange, compact, api }: EditorProps<Pixel
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, [doc, ctl]);
+
+  // Ctrl+V / Ctrl+Shift+V: let the browser fire a real `paste` event (its clipboardData needs no permission,
+  // unlike navigator.clipboard.read, which can hang or be refused in a WebView). Falls back to the menu command.
+  useEffect(() => {
+    const typing = (t: EventTarget | null) => { const el = t as HTMLElement | null; return !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable); };
+    const key = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'v' || typing(e.target)) return;
+      if (!rootRef.current || rootRef.current.offsetParent === null || useApp.getState().dialogs.length) return;
+      e.stopImmediatePropagation(); // keep the shell from turning this into a command (and cancelling the paste event)
+      const mode = e.shiftKey ? 'inPlace' : 'center';
+      let handled = false;
+      const onPaste = (pe: ClipboardEvent) => {
+        handled = true;
+        pe.preventDefault();
+        void imagesFromDataTransfer(pe.clipboardData).then((cs) => {
+          try { doc.editor?.commitTransient(); pasteCanvases(doc, cs, mode); api.markDirty(); }
+          catch (err) { if (err instanceof UserError) api.toast(err.message, 'error'); else throw err; }
+        });
+      };
+      window.addEventListener('paste', onPaste, { once: true, capture: true });
+      setTimeout(() => {
+        window.removeEventListener('paste', onPaste, true);
+        if (!handled) api.runCommand(mode === 'inPlace' ? 'pixel.edit.pasteInPlace' : 'pixel.edit.paste');
+      }, 120);
+    };
+    window.addEventListener('keydown', key, true);
+    return () => window.removeEventListener('keydown', key, true);
+  }, [doc, api]);
 
   const ui = doc.ui;
   const bytes = doc.layers.reduce((n, l) => n + (l.canvas ? rgbaBytes(l.canvas.width, l.canvas.height) : 0), 0) || rgbaBytes(doc.width, doc.height);

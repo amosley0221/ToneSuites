@@ -5,7 +5,7 @@ import type { PixelDoc } from '../engine/doc';
 import { defaultParams, FILTERS, filterById, type FilterDef } from '../engine/filters';
 import { hexToRgb } from '../engine/img';
 import { applyPixels, clearPreview, previewPixels, requirePixelLayer } from '../engine/ops';
-import { Check, Planned } from '../editor/ui';
+import { Check, Planned, useEnterKey } from '../editor/ui';
 
 export function runFilter(doc: PixelDoc, f: FilterDef, params: Record<string, number>, seed: number) {
   const ctx = { seed, fg: hexToRgb(doc.ui.fg), bg: hexToRgb(doc.ui.bg) };
@@ -85,6 +85,7 @@ export function FilterGalleryDialog({ doc, initial, onClose, galleryOnly = true 
   const apply = () => {
     try { runFilter(doc, f, params, seed); onClose(); } catch (e) { setError((e as Error).message); }
   };
+  useEnterKey(apply, !error && !f.planned);
   const pick = (x: FilterDef) => {
     if (x.planned) return;
     setId(x.id);
@@ -93,7 +94,7 @@ export function FilterGalleryDialog({ doc, initial, onClose, galleryOnly = true 
 
   return (
     <Dialog title={galleryOnly ? 'Filter gallery' : f.name} subtitle={`Layer: ${layer?.name ?? '—'}`} width={1000} height={640} onClose={close}>
-      <div style={{ flex: 1, padding: 16, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, alignContent: 'start' }}>
+      <div style={{ flex: 1, padding: 16, overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, alignContent: 'start' }}>
         {list.map((x) => (
           <div key={x.id} onClick={() => pick(x)} className={x.id === id || x.planned ? '' : 'hov-border'} title={x.planned ? `${x.name} is on the roadmap` : x.name}
             style={{ border: `1px solid ${x.id === id ? 'var(--accent)' : 'var(--line)'}`, cursor: x.planned ? 'default' : 'pointer', background: 'var(--bg0)', opacity: x.planned ? 0.5 : 1 }}>

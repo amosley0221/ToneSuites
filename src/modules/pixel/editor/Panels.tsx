@@ -97,10 +97,7 @@ export function PropertiesPanel({ doc, api, toast }: { doc: PixelDoc; api: Modul
       <div>
         <Label>Quick actions</Label>
         <div style={grid2}>
-          <Chip onClick={() => api.runCommand('pixel.select.subject')}>Select subject</Chip>
-          <Chip onClick={() => api.runCommand('pixel.quick.removeBackground')}>Remove background</Chip>
-          <Chip onClick={() => api.runCommand('pixel.edit.contentAwareFill')}>Content-aware fill</Chip>
-          <Chip onClick={() => api.runCommand('pixel.edit.skyReplacement')}>Sky replacement</Chip>
+          {['Select subject', 'Remove background', 'Content-aware fill', 'Sky replacement'].map((n) => <Chip key={n} disabled title={`${n} is on the roadmap`}>{n}</Chip>)}
         </div>
         <div style={{ color: 'var(--mute)', marginTop: 6, display: 'flex', gap: 6, alignItems: 'center' }}>AI-assisted actions <Planned /></div>
       </div>

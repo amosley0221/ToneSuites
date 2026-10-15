@@ -21,11 +21,15 @@ export function NumField({ label, value, onChange, min = -Infinity, max = Infini
 }) {
   const [text, setText] = useState(fmt(value, step));
   const focused = useRef(false);
+  /** Enter already committed; the blur that follows must not commit again (it would see a stale `value`). */
+  const skipBlur = useRef(false);
   useEffect(() => { if (!focused.current) setText(fmt(value, step)); }, [value, step]);
   const commit = () => {
     const v = parseFloat(text);
-    if (Number.isFinite(v)) onChange(clampN(v, min, max));
-    else setText(fmt(value, step));
+    if (!Number.isFinite(v)) { setText(fmt(value, step)); return; }
+    const c = clampN(v, min, max);
+    if (c !== value) onChange(c);
+    setText(fmt(c, step));
   };
   const scrub = (e: React.PointerEvent) => {
     const x0 = e.clientX, v0 = value;
@@ -39,10 +43,10 @@ export function NumField({ label, value, onChange, min = -Infinity, max = Infini
       {label !== undefined && <span onPointerDown={scrub} style={{ cursor: 'ew-resize' }}>{label}</span>}
       <span style={{ display: 'inline-flex', alignItems: 'center', border: '1px solid var(--line)', padding: '3px 8px', color: 'var(--ink)', font: 'var(--type-mono)', minWidth: width }}>
         <input value={text} onChange={(e) => setText(e.target.value)} onFocus={(e) => { focused.current = true; e.target.select(); }}
-          onBlur={() => { focused.current = false; commit(); }}
+          onBlur={() => { focused.current = false; if (skipBlur.current) skipBlur.current = false; else commit(); }}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); }
+            if (e.key === 'Enter') { commit(); skipBlur.current = true; (e.target as HTMLInputElement).blur(); }
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); onChange(clampN(value + (e.key === 'ArrowUp' ? step : -step) * (e.shiftKey ? 10 : 1), min, max)); }
           }}
           style={{ width: Math.max(24, width - (unit ? 22 : 8)), background: 'transparent', border: 0, outline: 0, color: 'inherit', font: 'inherit', padding: 0 }} />
@@ -50,6 +54,29 @@ export function NumField({ label, value, onChange, min = -Infinity, max = Infini
       </span>
     </label>
   );
+}
+
+/**
+ * Enter confirms a dialog (like its primary button). Runs after the focused field has committed its value,
+ * so a number typed into a NumField and confirmed with Enter is used. Ignored on buttons and text areas.
+ */
+export function useEnterKey(fn: () => void, enabled = true) {
+  const ref = useRef(fn);
+  ref.current = fn;
+  useEffect(() => {
+    if (!enabled) return;
+    let pending = false;
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || e.isComposing || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || pending) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON' || t.tagName === 'SELECT')) return;
+      e.preventDefault();
+      pending = true;
+      setTimeout(() => { pending = false; ref.current(); }, 0);
+    };
+    window.addEventListener('keydown', k, true);
+    return () => window.removeEventListener('keydown', k, true);
+  }, [enabled]);
 }
 
 const fmt = (v: number, step: number) => (step < 1 ? String(Math.round(v * 100) / 100) : String(Math.round(v)));

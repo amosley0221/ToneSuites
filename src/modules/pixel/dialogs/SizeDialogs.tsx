@@ -3,7 +3,7 @@ import { Button, Dialog, FormRow, Select } from '@/ui';
 import type { PixelDoc } from '../engine/doc';
 import { clampDim, constrainSize, formatBytes, fromPx, rgbaBytes, toPx, type Unit } from '../engine/geometry';
 import { canvasSize, imageSize } from '../engine/ops';
-import { Check, ColorSwatch, Label, NumField } from '../editor/ui';
+import { Check, ColorSwatch, Label, NumField, useEnterKey } from '../editor/ui';
 
 const UNITS: { value: Unit; label: string }[] = [{ value: 'px', label: 'px' }, { value: 'in', label: 'in' }, { value: 'cm', label: 'cm' }, { value: 'mm', label: 'mm' }];
 
@@ -31,6 +31,7 @@ export function ImageSizeDialog({ doc, onClose }: { doc: PixelDoc; onClose: () =
     setPpi(v);
   };
   const ok = () => { imageSize(doc, resample ? w : doc.width, resample ? h : doc.height, ppi, method); onClose(); };
+  useEnterKey(ok);
   return (
     <Dialog title="Image size" subtitle={`${doc.width} × ${doc.height} px`} width={720} height={400} onClose={onClose}
       footer={<><span style={{ flex: 1 }} /><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={ok}>OK</Button></>}>
@@ -73,6 +74,7 @@ export function CanvasSizeDialog({ doc, onClose }: { doc: PixelDoc; onClose: () 
   };
   const color = ext === 'transparent' ? null : ext === 'white' ? '#FFFFFF' : ext === 'black' ? '#000000' : ext === 'background' ? doc.ui.bg : ext === 'foreground' ? doc.ui.fg : other;
   const ok = () => { canvasSize(doc, w, h, anchor, color); onClose(); };
+  useEnterKey(ok);
   return (
     <Dialog title="Canvas size" subtitle={`${doc.width} × ${doc.height} px`} width={720} height={440} onClose={onClose}
       footer={<><span style={{ flex: 1 }} /><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={ok}>OK</Button></>}>

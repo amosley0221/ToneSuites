@@ -47,7 +47,6 @@ export class ToolController {
   crop: RectLike | null = null;
   private drag: ((p: PointerInfo) => void) | null = null;
   private dragEnd: ((p: PointerInfo) => void) | null = null;
-  private placed = false;
 
   constructor(private doc: PixelDoc, private env: ControllerEnv) {}
 
@@ -55,12 +54,11 @@ export class ToolController {
 
   // ---------- transform / crop sessions ----------
 
-  startTransform(placed = false): boolean {
+  startTransform(): boolean {
     this.commitCrop(false);
     if (this.transform) return true;
     try {
       this.transform = new TransformSession(this.doc);
-      this.placed = placed;
       this.doc.touch();
       return true;
     } catch (e) {
@@ -73,16 +71,13 @@ export class ToolController {
     if (!this.transform) return;
     const t = this.transform;
     this.transform = null;
-    t.commit();
-    if (this.placed && !t.changed) this.doc.commit('Place');
-    this.placed = false;
+    t.commit(); // a placement itself was already recorded by placeAll()
   }
 
   cancelTransform() {
     if (!this.transform) return;
     this.transform.cancel();
     this.transform = null;
-    this.placed = false;
     this.doc.emit();
   }
 
@@ -322,13 +317,19 @@ export class ToolController {
 
   private polyOp: CombineOp = 'replace';
 
+  private polyLast: { t: number; sx: number; sy: number } | null = null;
+
   private polyDown(p: PointerInfo) {
     const pts = this.overlay.lasso;
+    // PointerEvent.detail is 0 in Chromium, so detect a double-click from time + distance too
+    const now = performance.now(), last = this.polyLast;
+    const dbl = p.detail >= 2 || (!!last && now - last.t < 400 && Math.hypot(p.sx - last.sx, p.sy - last.sy) < 6);
+    this.polyLast = { t: now, sx: p.sx, sy: p.sy };
     if (!pts) { this.polyOp = this.opFor(p); this.overlay.lasso = [[p.x, p.y]]; this.env.redrawOverlay(); return; }
     const [fx, fy] = pts[0];
     const z = this.env.zoom();
     const nearStart = Math.hypot((p.x - fx) * z, (p.y - fy) * z) < 8;
-    if (p.detail >= 2 || nearStart) { this.closePoly(); return; }
+    if (dbl || nearStart) { this.polyLast = null; this.closePoly(); return; }
     pts.push([p.x, p.y]);
     this.env.redrawOverlay();
   }

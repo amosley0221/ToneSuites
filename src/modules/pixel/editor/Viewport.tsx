@@ -1,6 +1,6 @@
 // Canvas view: checkerboard + composite, overlays (selection, transform, crop, guides, rulers), pointer input.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { composite } from '../engine/composite';
+import { compositeView } from '../engine/composite';
 import type { PixelDoc } from '../engine/doc';
 import { maskBounds, maskOutline, type Mask } from '../engine/mask';
 import { rerender, textBox, fontString } from '../engine/render';
@@ -86,7 +86,11 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
         if ((Math.round((xx - panX) / 8) + Math.round((yy - panY) / 8)) % 2 === 0) x.fillRect(xx, yy, 8, 8);
       }
     }
-    const comp = composite(doc);
+    // zoomed out: composite at a reduced power-of-two scale (much faster for big images / adjustment layers)
+    const need = zoom * dpr;
+    let k = 1;
+    while (k / 2 >= need && k > 1 / 16) k /= 2;
+    const comp = compositeView(doc, k);
     x.imageSmoothingEnabled = zoom < 1;
     x.imageSmoothingQuality = 'high';
     if (doc.ui.flipView) { x.translate(panX + w, panY); x.scale(-1, 1); x.drawImage(comp, 0, 0, w, h); }
@@ -418,7 +422,7 @@ export function Viewport({ doc, ctl, apiRef, onEditText, textEdit, onTextDone, s
   cursorRef.current = setCursor;
 
   const onDown = (e: React.PointerEvent) => {
-    over.current!.setPointerCapture(e.pointerId);
+    try { over.current!.setPointerCapture(e.pointerId); } catch { /* pointer already gone (some WebViews) */ }
     wrap.current?.focus();
     if (e.pointerType === 'touch') {
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });

@@ -6,7 +6,7 @@ import type { PixelDoc } from '../engine/doc';
 import { colorRange, combine, isEmpty, toneRange, type CombineOp } from '../engine/mask';
 import { hexToRgb } from '../engine/img';
 import { fillWith, loadSelectionChannel, strokeSelection } from '../engine/ops';
-import { CanvasThumb, Check, ColorSwatch, NumField } from '../editor/ui';
+import { CanvasThumb, Check, ColorSwatch, NumField, useEnterKey } from '../editor/ui';
 
 function Footer({ onCancel, onOk, okLabel = 'OK', disabled }: { onCancel: () => void; onOk: () => void; okLabel?: string; disabled?: boolean }) {
   return <><span style={{ flex: 1 }} /><Button onClick={onCancel}>Cancel</Button><Button variant="primary" onClick={onOk} disabled={disabled}>{okLabel}</Button></>;
@@ -20,13 +20,14 @@ export function PromptDialog({ title, subtitle, label, initial, onOk, onClose, k
 }) {
   const [v, setV] = useState(String(initial));
   const ok = () => { onOk(v); onClose(); };
+  useEnterKey(ok);
   return (
     <Dialog title={title} subtitle={subtitle} width={440} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={body}>
         <FormRow label={label}>
           {kind === 'number'
             ? <NumField value={Number(v) || 0} min={min} max={max} step={step} unit={unit} onChange={(n) => setV(String(n))} width={100} />
-            : <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') ok(); }}
+            : <input autoFocus value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => e.stopPropagation()}
               style={{ width: 240, padding: '5px 8px', background: 'var(--bg0)', border: '1px solid var(--line)', color: 'var(--ink)', outline: 'none', font: 'var(--type-small)' }} />}
         </FormRow>
       </div>
@@ -43,6 +44,7 @@ export function FillDialog({ doc, onClose }: { doc: PixelDoc; onClose: () => voi
   const [err, setErr] = useState<string | null>(null);
   const resolve = () => ({ foreground: doc.ui.fg, background: doc.ui.bg, color, black: '#000000', white: '#FFFFFF', gray: '#808080' }[content]);
   const ok = () => { try { fillWith(doc, resolve(), opacity / 100, mode); onClose(); } catch (e) { setErr((e as Error).message); } };
+  useEnterKey(ok);
   return (
     <Dialog title="Fill" subtitle={doc.selection ? 'Selection' : 'Whole layer'} width={480} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={body}>
@@ -72,6 +74,7 @@ export function StrokeDialog({ doc, onClose }: { doc: PixelDoc; onClose: () => v
   const [opacity, setOpacity] = useState(100);
   const [err, setErr] = useState<string | null>(null);
   const ok = () => { try { strokeSelection(doc, width, color, loc.toLowerCase() as 'inside', opacity / 100); onClose(); } catch (e) { setErr((e as Error).message); } };
+  useEnterKey(ok);
   return (
     <Dialog title="Stroke" subtitle="Selection" width={460} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={body}>
@@ -101,6 +104,7 @@ export function ColorRangeDialog({ doc, onClose }: { doc: PixelDoc; onClose: () 
     doc.commit('Color range');
     onClose();
   };
+  useEnterKey(ok);
   return (
     <Dialog title="Color range" subtitle="Composite image" width={680} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={body}>
@@ -135,8 +139,10 @@ function maskPreviewCanvas(m: { w: number; h: number; data: Uint8Array }) {
 
 export function TrimDialog({ onOk, onClose }: { onOk: (b: 'transparent' | 'topLeft' | 'bottomRight') => void; onClose: () => void }) {
   const [b, setB] = useState<'transparent' | 'topLeft' | 'bottomRight'>('transparent');
+  const ok = () => { onOk(b); onClose(); };
+  useEnterKey(ok);
   return (
-    <Dialog title="Trim" subtitle="Based on" width={420} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={() => { onOk(b); onClose(); }} />}>
+    <Dialog title="Trim" subtitle="Based on" width={420} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={{ ...body, gap: 10 }}>
         <Check on={b === 'transparent'} onChange={() => setB('transparent')} label="Transparent pixels" />
         <Check on={b === 'topLeft'} onChange={() => setB('topLeft')} label="Top left pixel color" />
@@ -150,6 +156,7 @@ export function LoadSelectionDialog({ doc, onClose }: { doc: PixelDoc; onClose: 
   const [id, setId] = useState(doc.channels[0]?.id ?? '');
   const [op, setOp] = useState<CombineOp>('replace');
   const ok = () => { if (id) loadSelectionChannel(doc, id, op); onClose(); };
+  useEnterKey(ok);
   return (
     <Dialog title="Load selection" subtitle="Alpha channels" width={460} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} disabled={!id} />}>
       <div style={body}>
@@ -171,6 +178,7 @@ export function NewGuideDialog({ doc, onClose }: { doc: PixelDoc; onClose: () =>
     doc.commit('New guide');
     onClose();
   };
+  useEnterKey(ok);
   return (
     <Dialog title="New guide" width={420} height="auto" onClose={onClose} footer={<Footer onCancel={onClose} onOk={ok} />}>
       <div style={body}>

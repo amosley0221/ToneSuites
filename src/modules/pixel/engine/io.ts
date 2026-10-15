@@ -4,8 +4,8 @@ import { fromPsdBlend, toPsdBlend, type BlendMode } from './blend';
 import {
   bytesToCanvas, canvasAlphaToMask, canvasToBytes, ctx2d, grayToMaskCanvas, maskCanvasToGray, maskToCanvas, mimeFor, newCanvas, type Cnv,
 } from './canvas';
-import { flattenCopy } from './composite';
-import { PixelDoc, type Channel, type Guide, type Layer, type LayerKind, type LayerStyles, type ShapeData, type TextData } from './doc';
+import { flattenCopy, renderLayerAlone } from './composite';
+import { hasStyles, PixelDoc, type Channel, type Guide, type Layer, type LayerKind, type LayerStyles, type ShapeData, type TextData } from './doc';
 import { docFromCanvas } from './ops';
 import { rerender } from './render';
 
@@ -143,6 +143,8 @@ export async function writePsdBytes(doc: PixelDoc): Promise<Uint8Array> {
       canvas = l.kind === 'fill' ? solid(doc, l.fillColor ?? '#000') : newCanvas(1, 1);
       left = 0; top = 0;
     }
+    // PSD readers would drop our layer styles: bake them (with the mask) into the pixels so the look survives
+    if (hasStyles(l.styles) && l.kind !== 'adjustment') return { ...base, canvas: renderLayerAlone(doc, l), left: 0, top: 0 };
     const out: any = { ...base, canvas, left, top };
     if (l.mask) out.mask = { canvas: maskCanvasToGray(l.mask.canvas), left: l.mask.x, top: l.mask.y, defaultColor: 0, disabled: !l.mask.enabled };
     return out;

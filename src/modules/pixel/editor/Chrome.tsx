@@ -46,6 +46,7 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
     return (
       <div className="toolbar" style={{ gap: 14, padding: '0 12px' }}>
         <Name accent>Free transform</Name>
+        {compact && <><Button onClick={() => ctl.cancelTransform()}>Cancel</Button><Button variant="primary" onClick={() => ctl.commitTransform()}>Commit</Button></>}
         <NumField label="X" value={Math.round(p.cx - (tr.w * p.sx) / 2)} onChange={(x) => upd(() => { p.cx = x + (tr.w * p.sx) / 2; })} />
         <NumField label="Y" value={Math.round(p.cy - (tr.h * p.sy) / 2)} onChange={(y) => upd(() => { p.cy = y + (tr.h * p.sy) / 2; })} />
         <NumField label="W" unit="%" value={Math.round(p.sx * 1000) / 10} step={0.1} onChange={(w) => upd(() => { p.sx = w / 100 || 0.01; })} />
@@ -55,8 +56,8 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
           options={[{ value: 'bicubic', label: 'Interpolation: Bicubic' }, { value: 'nearest', label: 'Interpolation: Nearest' }]} />
         <Chip disabled title="Warp, perspective and distort are on the roadmap">Warp · Perspective · Distort</Chip>
         <div style={{ flex: 1 }} />
-        <Button onClick={() => ctl.cancelTransform()}>Cancel</Button>
-        <Button variant="primary" onClick={() => ctl.commitTransform()}>Commit ⏎</Button>
+        {!compact && <><Button onClick={() => ctl.cancelTransform()}>Cancel</Button>
+        <Button variant="primary" onClick={() => ctl.commitTransform()}>Commit ⏎</Button></>}
       </div>
     );
   }
@@ -65,12 +66,13 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
     return (
       <div className="toolbar" style={{ gap: 14, padding: '0 12px' }}>
         <Name>Crop</Name>
+        {compact && <><Button onClick={() => { ctl.crop = null; doc.emit(); }}>Cancel</Button><Button variant="primary" onClick={() => { ctl.commitCrop(true); doc.view?.fit(); }}>Commit</Button></>}
         <NumField label="W" unit="px" value={Math.round(c.w)} min={1} onChange={(w) => { ctl.crop = { ...c, w }; doc.emit(); }} />
         <NumField label="H" unit="px" value={Math.round(c.h)} min={1} onChange={(h) => { ctl.crop = { ...c, h }; doc.emit(); }} />
         <Check on={ui.crop.deletePixels} onChange={(b) => set(() => { ui.crop.deletePixels = b; })} label="Delete cropped pixels" />
         <div style={{ flex: 1 }} />
-        <Button onClick={() => { ctl.crop = null; doc.emit(); }}>Cancel</Button>
-        <Button variant="primary" onClick={() => ctl.commitCrop(true)}>Commit ⏎</Button>
+        {!compact && <><Button onClick={() => { ctl.crop = null; doc.emit(); }}>Cancel</Button>
+        <Button variant="primary" onClick={() => { ctl.commitCrop(true); doc.view?.fit(); }}>Commit ⏎</Button></>}
       </div>
     );
   }
@@ -167,7 +169,8 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
 }
 
 export function ToolRail({ doc, compact }: { doc: PixelDoc; compact: boolean }) {
-  const [flyout, setFlyout] = useState<{ g: ToolGroup; top: number; left: number } | null>(null);
+  // Fixed positioning: the rail scrolls (overflow auto), which would clip an absolutely positioned flyout.
+  const [flyout, setFlyout] = useState<{ g: ToolGroup; left: number; top?: number; bottom?: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const ui = doc.ui;
   useEffect(() => {
@@ -180,7 +183,9 @@ export function ToolRail({ doc, compact }: { doc: PixelDoc; compact: boolean }) 
   const press = useRef<number | null>(null);
   const openFly = (g: ToolGroup, el: HTMLElement) => {
     const r = el.getBoundingClientRect(), rr = ref.current!.getBoundingClientRect();
-    setFlyout({ g, top: compact ? -8 : r.top - rr.top, left: compact ? r.left - rr.left : 52 });
+    const W = 230, vw = window.innerWidth, vh = window.innerHeight;
+    if (compact) setFlyout({ g, left: Math.max(4, Math.min(r.left, vw - W - 4)), bottom: vh - rr.top + 2 });
+    else setFlyout({ g, left: rr.right, top: Math.max(4, Math.min(r.top, vh - (g.variants.length * 32 + 12))) });
   };
   return (
     <div ref={ref} className="toolrail" style={{ width: 52, borderRight: '1px solid var(--line)', background: 'var(--bg1)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: compact ? '0 6px' : '6px 0', position: compact ? undefined : 'relative', zIndex: compact ? undefined : 4, flexShrink: 0, overflowY: compact ? undefined : 'auto' }}>
@@ -209,7 +214,7 @@ export function ToolRail({ doc, compact }: { doc: PixelDoc; compact: boolean }) 
         );
       })}
       {flyout && (
-        <div style={{ position: 'absolute', left: flyout.left, top: compact ? undefined : flyout.top, bottom: compact ? 50 : undefined, width: 230, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)', padding: '4px 0', zIndex: 60 }}>
+        <div style={{ position: 'fixed', left: flyout.left, top: flyout.top, bottom: flyout.bottom, width: 230, background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-float)', padding: '4px 0', zIndex: 60 }}>
           {flyout.g.variants.map((x, i) => (
             <div key={x.id} className="hov-row" onClick={() => { selectTool(doc, x.id); setFlyout(null); }}
               style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '7px 12px', font: 'var(--type-small)', cursor: 'pointer', background: x.id === ui.tool ? 'var(--sel)' : 'transparent', color: x.working ? 'var(--ink)' : 'var(--mute)' }}>

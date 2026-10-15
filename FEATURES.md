@@ -501,7 +501,7 @@ Every command in the design exists in the app; this tracks which ones are fully 
 - ✅ Zoom out `Ctrl -`
 - ✅ Fit on screen `Ctrl 0`
 - ✅ Fit layer(s) on screen
-- ✅ 100% `Ctrl 1`
+- ✅ 100% `Ctrl Alt 0`
 - ✅ 200%
 - ✅ Print size
 - ✅ Flip horizontal

@@ -122,7 +122,8 @@ export class TransformSession {
     if (!this.changed) { doc.touch(); return; }
     const { cx, cy, sx, sy, angle } = this.p;
     const pureMove = sx === 1 && sy === 1 && angle === 0;
-    if (this.live && (pureMove || angle === 0)) {
+    // live type/shape stays live for moves and positive axis scales; flips and rotations rasterize
+    if (this.live && (pureMove || (angle === 0 && sx > 0 && sy > 0))) {
       // keep type/shape layers live for moves and axis scales
       const dx = cx - this.origin.cx, dy = cy - this.origin.cy;
       if (pureMove) { l.x = Math.round(l.x + dx); l.y = Math.round(l.y + dy); }

@@ -7,6 +7,13 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Pixel: Clone stamp copies from the spot you Alt-clicked; double-click closes a polygonal lasso.
+- Pixel: Paste (Ctrl+V) no longer hangs and pastes images copied from other apps.
+- Pixel: tool variants (Pencil, Polygonal lasso, Elliptical marquee and others) open from the tool bar again, including long-press on phones.
+- Pixel: Enter confirms dialogs; number fields no longer apply twice; undoing a placed image removes it; guide changes can be undone; PSD export keeps layer styles.
+- Pixel (phone): transform and crop Commit buttons are always visible, and Curves fits the screen.
+- Pixel: View › 100% is now Ctrl Alt 0 (Ctrl 1 switches tabs).
+- Dialogs keep your settings while the app updates in the background (e.g. when a sync finishes).
 - Deck: paste screenshots and images with Ctrl+V, and copy/paste slide objects between decks.
 - Deck: Delete and arrow keys keep working after editing text; Delete no longer removes the whole slide unless the slide list is focused.
 - Deck: long titles no longer get cut off while editing; switching layouts keeps filled placeholders.
@@ -38,6 +45,7 @@ updater show), and the app shows it in "What's new" after updating.
 - Cells: the column filter now filters the sheet as you type, shows how many rows match (or "No matches"), and finds values regardless of capitals, spaces or thousands separators (75568 finds 75,568). Cancel puts the previous filter back; OK keeps it, and it's saved with the file.
 
 ### Improved
+- Pixel: much faster painting and previews on large images, especially with adjustment layers.
 - Deck: Tab moves between table cells (and adds a row in the last one); outline export includes tables; importing an outline into a new deck no longer leaves an empty first slide.
 - Write: pasting from Word keeps bullets, numbering, titles and quotes; reopened Word files keep page breaks, quotes and code blocks.
 - Write on phones: Panels is first in the toolbar, tapping the page closes the panel, and Page setup / Table of contents fit the screen.

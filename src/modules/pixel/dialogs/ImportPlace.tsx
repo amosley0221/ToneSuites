@@ -3,8 +3,8 @@ import type { ModuleApi } from '@/core/types';
 import { Button, Dialog, DialogNav } from '@/ui';
 import { bytesToCanvas, canvasToBytes, type Cnv } from '../engine/canvas';
 import type { PixelDoc } from '../engine/doc';
-import { getInternalClip, placeCanvas } from '../engine/ops';
-import { CanvasThumb, Check, Planned } from '../editor/ui';
+import { getInternalClip, nextLayerName, placeCanvas, UserError } from '../engine/ops';
+import { CanvasThumb, Check, Planned, useEnterKey } from '../editor/ui';
 
 export const PLACE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'psd'];
 
@@ -27,20 +27,52 @@ export async function decodeToCanvas(bytes: Uint8Array): Promise<Cnv> {
   return bytesToCanvas(bytes, '');
 }
 
-/** Read images from the system clipboard (falls back to Tone's internal clipboard). */
+/** Set once the system clipboard read has hung (a permission prompt nobody answers); later reads give up sooner. */
+let clipboardSlow = false;
+
+/** Read images from the system clipboard (falls back to Tone's internal clipboard). Never hangs. */
 export async function readClipboardImages(): Promise<Cnv[]> {
   const out: Cnv[] = [];
   try {
-    const items = await navigator.clipboard?.read?.();
-    for (const it of items ?? []) {
-      const type = it.types.find((t) => t.startsWith('image/'));
-      if (!type) continue;
-      const blob = await it.getType(type);
-      out.push(await bytesToCanvas(new Uint8Array(await blob.arrayBuffer()), type));
+    const read = navigator.clipboard?.read?.();
+    if (read) {
+      read.catch(() => { /* handled below via timeout / empty */ });
+      const items = await Promise.race([read, new Promise<null>((r) => setTimeout(() => r(null), clipboardSlow ? 400 : 2500))]);
+      if (items === null) clipboardSlow = true;
+      for (const it of items ?? []) {
+        const type = it.types.find((t) => t.startsWith('image/'));
+        if (!type) continue;
+        const blob = await it.getType(type);
+        out.push(await bytesToCanvas(new Uint8Array(await blob.arrayBuffer()), type));
+      }
     }
   } catch { /* permission denied or unsupported */ }
   if (!out.length) { const c = getInternalClip(); if (c) out.push(c.canvas); }
   return out;
+}
+
+/** Images carried by a paste (or drop) event — needs no clipboard permission. */
+export async function imagesFromDataTransfer(dt: DataTransfer | null): Promise<Cnv[]> {
+  const out: Cnv[] = [];
+  for (const it of Array.from(dt?.items ?? [])) {
+    if (it.kind !== 'file' || !it.type.startsWith('image/')) continue;
+    const f = it.getAsFile();
+    if (!f) continue;
+    try { out.push(await decodeToCanvas(new Uint8Array(await f.arrayBuffer()))); } catch { /* not decodable */ }
+  }
+  return out;
+}
+
+/** Edit › Paste / Paste in place / Paste into: system image first, else Tone's own clipboard (keeps its position). */
+export function pasteCanvases(doc: PixelDoc, sys: Cnv[], mode: 'center' | 'inPlace' | 'into') {
+  const internal = getInternalClip();
+  const c = sys[0] ?? internal?.canvas;
+  if (!c) throw new UserError('Nothing to paste — copy an image first');
+  const fromUs = !!internal && (sys.length === 0 || (sys[0].width === internal.canvas.width && sys[0].height === internal.canvas.height));
+  const pos = mode !== 'center' && fromUs ? { x: internal!.x, y: internal!.y } : {};
+  if (mode === 'into' && !doc.selection) throw new UserError('Make a selection to paste into');
+  placeCanvas(doc, c, nextLayerName(doc), { ...pos, into: mode === 'into' });
+  doc.commit(mode === 'into' ? 'Paste into' : 'Paste');
 }
 
 /** Place canvases as new layers; the last one enters free transform. */
@@ -94,6 +126,7 @@ export function ImportPlaceDialog({ doc, api, onClose, initial = 'device' }: { d
     for (const c of chosen) await api.openBytesAsDoc(c.bytes ?? await canvasToBytes(c.canvas), c.bytes ? c.name : `${c.name}.png`);
     onClose();
   };
+  useEnterKey(() => { void place(); }, chosen.length > 0);
   const shown = src === 'recent' ? recent : items;
 
   return (

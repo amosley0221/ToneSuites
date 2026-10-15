@@ -567,7 +567,7 @@ export const menus: MenuDef[] = [
       done('pixel.view.zoomOut', 'Zoom out', 'Ctrl -'),
       done('pixel.view.fit', 'Fit on screen', 'Ctrl 0'),
       done('pixel.view.fitLayers', 'Fit layer(s) on screen'),
-      done('pixel.view.actual', '100%', 'Ctrl 1'),
+      done('pixel.view.actual', '100%', 'Ctrl Alt 0'),
       done('pixel.view.zoom200', '200%'),
       done('pixel.view.printSize', 'Print size'),
       SEP,

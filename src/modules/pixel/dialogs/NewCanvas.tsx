@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Dialog, DialogNav, FormRow, Select } from '@/ui';
 import { CANVAS_PRESETS, clampDim, formatBytes, fromPx, rgbaBytes, toPx, type Unit } from '../engine/geometry';
 import type { BackgroundFill } from '../engine/ops';
-import { Check, ColorSwatch, NumField } from '../editor/ui';
+import { Check, ColorSwatch, NumField, useEnterKey } from '../editor/ui';
 
 export interface NewCanvasResult { width: number; height: number; ppi: number; background: BackgroundFill; bgColor: string; name: string }
 
@@ -30,6 +30,7 @@ export function NewCanvasDialog({ onDone }: { onDone: (r: NewCanvasResult | null
   const w = fromPx(wPx, unit, ppi), h = fromPx(hPx, unit, ppi);
   const step = unit === 'px' ? 1 : 0.01;
   const create = () => onDone({ width: clampDim(wPx), height: clampDim(hPx), ppi, background: bg, bgColor, name: name.trim() || 'Untitled' });
+  useEnterKey(create);
 
   return (
     <Dialog title="New canvas" subtitle="Pixel" width={760} height={500} onClose={() => onDone(null)}
@@ -41,8 +42,7 @@ export function NewCanvasDialog({ onDone }: { onDone: (r: NewCanvasResult | null
       </>}>
       <DialogNav width={240} value={preset} onChange={choose}
         items={[{ value: 'custom', label: 'Custom' }, ...CANVAS_PRESETS.map((p) => ({ value: p.id, label: p.label, hint: p.hint }))]} />
-      <div style={{ flex: 1, padding: '18px 22px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}
-        onKeyDown={(e) => { if (e.key === 'Enter') create(); }}>
+      <div style={{ flex: 1, padding: '18px 22px', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <FormRow label="Name">
           <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.stopPropagation()}
             style={{ width: 220, padding: '5px 8px', background: 'var(--bg0)', border: '1px solid var(--line)', color: 'var(--ink)', font: 'var(--type-small)', outline: 'none' }} />

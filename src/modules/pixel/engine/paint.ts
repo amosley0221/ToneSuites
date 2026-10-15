@@ -43,6 +43,16 @@ export function brushTip(o: TipOpts): Cnv {
   return c;
 }
 
+/**
+ * Where to draw a clone/history source canvas (positioned at canvasX/Y in doc space) inside a stroke target at fx/fy,
+ * so that the pixel painted at doc point p comes from the source at p - off (off = stroke start - clone source point).
+ */
+export function cloneSourceOrigin(canvasX: number, canvasY: number, offX: number, offY: number, fx: number, fy: number) {
+  return { x: canvasX + offX - fx, y: canvasY + offY - fy };
+}
+
+interface Clip { x: number; y: number; w: number; h: number }
+
 export interface StrokeOpts extends TipOpts {
   mode: 'paint' | 'erase' | 'clone' | 'history';
   color: string;
@@ -81,8 +91,8 @@ export class BufferedStroke {
 
   /** Clone source: canvas positioned in doc space, sampled with an offset (doc units). */
   setSource(canvas: Cnv, canvasX: number, canvasY: number, offX: number, offY: number) {
-    // colored pixel at doc p takes source pixel at p + off → draw source at (canvasX - off - fx)
-    this.source = { canvas, dx: canvasX - offX - this.fx, dy: canvasY - offY - this.fy };
+    const o = cloneSourceOrigin(canvasX, canvasY, offX, offY, this.fx, this.fy);
+    this.source = { canvas, dx: o.x, dy: o.y };
   }
 
   private dab(x: number, y: number, p: number) {
@@ -92,6 +102,11 @@ export class BufferedStroke {
     const c = ctx2d(this.coverage);
     c.globalAlpha = clamp(o.flow * (o.pressureOpacity ? p : 1), 0, 1);
     const s = tip.width;
+    const dx0 = Math.floor(x - this.fx - s / 2) - 2, dy0 = Math.floor(y - this.fy - s / 2) - 2;
+    const d = this.dirty;
+    this.dirty = d
+      ? { x0: Math.min(d.x0, dx0), y0: Math.min(d.y0, dy0), x1: Math.max(d.x1, dx0 + s + 4), y1: Math.max(d.y1, dy0 + s + 4) }
+      : { x0: dx0, y0: dy0, x1: dx0 + s + 4, y1: dy0 + s + 4 };
     c.drawImage(tip, o.aliased ? Math.round(x - this.fx - s / 2) : x - this.fx - s / 2, o.aliased ? Math.round(y - this.fy - s / 2) : y - this.fy - s / 2);
   }
 
@@ -110,23 +125,30 @@ export class BufferedStroke {
     this.last = { x, y, p };
   }
 
-  private colorize(): Cnv {
+  /** Coverage area changed since the last render (target-local px); render() only redraws it. */
+  private dirty: { x0: number; y0: number; x1: number; y1: number } | null = null;
+  private rendered = false;
+
+  private colorize(clip?: Clip): Cnv {
     const col = this.colored;
-    clearCanvas(col);
     const c = ctx2d(col);
+    c.save();
+    if (clip) { c.clearRect(clip.x, clip.y, clip.w, clip.h); c.beginPath(); c.rect(clip.x, clip.y, clip.w, clip.h); c.clip(); }
+    else clearCanvas(col);
     c.drawImage(this.coverage, 0, 0);
     const sel = this.doc.selectionCanvas();
     if (sel) { c.globalCompositeOperation = 'destination-in'; c.drawImage(sel, -this.fx, -this.fy); }
     c.globalCompositeOperation = 'source-in';
     if ((this.o.mode === 'clone' || this.o.mode === 'history') && this.source) c.drawImage(this.source.canvas, this.source.dx, this.source.dy);
     else { c.fillStyle = this.onMask ? '#000' : this.o.color; c.fillRect(0, 0, col.width, col.height); }
-    c.globalCompositeOperation = 'source-over';
+    c.restore();
     return col;
   }
 
-  private applyTo(ctx: CanvasRenderingContext2D) {
-    const col = this.colorize();
+  private applyTo(ctx: CanvasRenderingContext2D, clip?: Clip) {
+    const col = this.colorize(clip);
     ctx.save();
+    if (clip) { ctx.beginPath(); ctx.rect(clip.x, clip.y, clip.w, clip.h); ctx.clip(); }
     if (this.onMask) {
       // mask value from paint color luminance: white reveals, black hides
       const v = this.o.mode === 'erase' ? 1 : luma(...hexRgb(this.o.color)) / 255;
@@ -143,10 +165,27 @@ export class BufferedStroke {
   }
 
   render(): { canvas: Cnv; x: number; y: number } {
-    clearCanvas(this.preview);
     const p = ctx2d(this.preview);
-    p.drawImage(this.target, 0, 0);
-    this.applyTo(p);
+    if (!this.rendered) {
+      clearCanvas(this.preview);
+      p.drawImage(this.target, 0, 0);
+      this.applyTo(p);
+      this.rendered = true;
+    } else if (this.dirty) {
+      // only the area the new dabs touched (big canvases stay fast while painting)
+      const d = this.dirty;
+      const x0 = Math.max(0, d.x0), y0 = Math.max(0, d.y0), x1 = Math.min(this.preview.width, d.x1), y1 = Math.min(this.preview.height, d.y1);
+      if (x1 > x0 && y1 > y0) {
+        const clip = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+        p.save();
+        p.clearRect(clip.x, clip.y, clip.w, clip.h);
+        p.beginPath(); p.rect(clip.x, clip.y, clip.w, clip.h); p.clip();
+        p.drawImage(this.target, 0, 0);
+        p.restore();
+        this.applyTo(p, clip);
+      }
+    }
+    this.dirty = null;
     return { canvas: this.preview, x: this.fx, y: this.fy };
   }
 

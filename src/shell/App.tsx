@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { coreHandlers, keyEvent, registerGlobal, runCommand, shortcutMap } from '@/core/commands';
 import { openPath, openRecent } from '@/core/documents';
 import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
-import { activeDoc, useApp } from '@/core/store';
+import { activeDoc, useApp, type DialogEntry } from '@/core/store';
 import { setSystemBarTheme, startInsets } from '@/core/insets';
 import { runUpdateCheck, updateAction, useUpdates } from '@/core/updater';
 import { UPDATE_CHECK_HOURS } from '@/config';
@@ -71,6 +71,12 @@ async function listenForOpenedFiles() {
   };
   await listen('open-files', () => void drain());
   await drain();
+}
+
+/** Renders a pushed dialog once, so App re-renders (toasts, sync status…) don't hand it fresh props and reset its state. */
+function DialogHost({ entry }: { entry: DialogEntry }) {
+  const el = useMemo(() => entry.render(() => useApp.getState().popDialog(entry.id)), [entry.id]);
+  return <div>{el}</div>;
 }
 
 function useCompact() {
@@ -170,7 +176,7 @@ export function App() {
       </div>
       <StatusBar />
       {palette && <CommandPalette />}
-      {dialogs.map((d) => <div key={d.id}>{d.render(() => useApp.getState().popDialog(d.id))}</div>)}
+      {dialogs.map((d) => <DialogHost key={d.id} entry={d} />)}
       <div style={{ position: 'fixed', bottom: 'calc(40px + var(--safe-bottom))', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 200, pointerEvents: 'none' }}>
         {toasts.map((t) => (
           <div key={t.id} style={{ background: 'var(--bg1)', border: `1px solid ${t.tone === 'error' ? 'var(--negative)' : 'var(--line)'}`, boxShadow: 'var(--shadow-float)', padding: '9px 14px', font: 'var(--type-small)', animation: 'toast-in 120ms var(--ease)', maxWidth: 560 }}>

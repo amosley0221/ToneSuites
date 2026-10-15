@@ -7,7 +7,7 @@ import {
 import { flattenCopy, renderLayerAlone } from './composite';
 import { hasStyles, PixelDoc, type Channel, type Guide, type Layer, type LayerKind, type LayerStyles, type ShapeData, type TextData } from './doc';
 import { docFromCanvas } from './ops';
-import { rerender } from './render';
+import { fontString, rerender } from './render';
 
 export const FORMAT_VERSION = 1;
 
@@ -65,7 +65,7 @@ export async function deserialize(files: Record<string, Uint8Array>, formatVersi
     if (lj.hasCanvas && png) l.canvas = await bytesToCanvas(png);
     if (l.kind === 'text' || l.kind === 'shape') {
       // keep stored pixels if fonts are missing; otherwise re-render live content
-      try { if (l.kind === 'text') { await document.fonts?.load?.(`${l.text!.weight} ${l.text!.size}px "${l.text!.font}"`); } rerender(l); } catch { /* keep stored */ }
+      try { if (l.kind === 'text') { await document.fonts?.load?.(fontString(l.text!)); } rerender(l); } catch { /* keep stored */ }
     }
     const m = files[`masks/${lj.id}.png`];
     if (lj.mask && m) l.mask = { canvas: await bytesToCanvas(m), x: lj.mask.x, y: lj.mask.y, enabled: lj.mask.enabled };

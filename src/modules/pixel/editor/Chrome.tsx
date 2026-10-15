@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { ModuleApi } from '@/core/types';
 import { Button, Select } from '@/ui';
 import type { PixelDoc } from '../engine/doc';
-import { FONT_FAMILIES, FONT_WEIGHTS } from '../engine/render';
+import { FontPicker } from '@/ui/FontPicker';
+import { afterFontReady, FONT_WEIGHTS, fontString, rerender } from '../engine/render';
 import { TOOL_GROUPS, defaultVariant, groupOf, variantOf, type ToolGroup, type ToolId } from '../engine/tooldefs';
 import type { ToolController } from './controller';
 import { Check, Chip, ColorSwatch, DropMenu, NumField, Planned } from './ui';
@@ -133,10 +134,15 @@ export function OptionsBar({ doc, ctl, api, onPanels, compact }: { doc: PixelDoc
       const al = doc.active?.kind === 'text' ? doc.active : null;
       const apply = (patch: Partial<typeof tt>) => set(() => {
         Object.assign(tt, patch);
-        if (al?.text) { al.text = { ...al.text, ...patch }; import('../engine/render').then((r) => { r.rerender(al); doc.commit('Type settings'); }); }
+        if (al?.text) {
+          const next = { ...al.text, ...patch };
+          al.text = next;
+          // Draw (and record the undo step) once the face is loaded, so the layer never keeps fallback pixels.
+          afterFontReady(next, () => { if (al.text === next) { rerender(al); doc.commit('Type settings'); } });
+        } else void document.fonts?.load(fontString(tt)).catch(() => null);
       });
       fields = <>
-        <Select value={tt.font} width={150} onChange={(f) => apply({ font: f })} options={FONT_FAMILIES} />
+        <FontPicker value={tt.font} width={150} onChange={(f) => apply({ font: f })} />
         <Select value={String(tt.weight)} width={110} onChange={(w) => apply({ weight: Number(w) })} options={FONT_WEIGHTS} />
         <NumField label="Size" unit="px" value={tt.size} min={1} max={2000} onChange={(n) => apply({ size: n })} />
         <ColorSwatch value={al?.text?.color ?? ui.fg} onChange={(c) => { ui.fg = c; apply({ color: c }); }} title="Text color" />

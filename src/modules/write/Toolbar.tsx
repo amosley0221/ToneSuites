@@ -2,13 +2,14 @@
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ModuleApi } from '@/core/types';
 import { MenuItem } from '@/ui';
+import { FontPicker } from '@/ui/FontPicker';
 import * as A from './actions';
 import { writeCommands } from './commands';
 import type { WriteModel } from './model';
+import { DEFAULT_FONT } from './fonts';
 import { schema } from './schema';
 import { listChanges } from './track';
 
-const FONTS = ['Archivo', 'Helvetica', 'Arial', 'Georgia', 'Times New Roman', 'Garamond', 'Courier New', 'JetBrains Mono'];
 const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 60, 72];
 /** Default size (pt) of each paragraph style, for the size box when no explicit size is set. */
 const STYLE_PT: Record<A.StyleName, number> = { body: 11, quote: 11, code: 10, title: 30, h1: 21, h2: 16.5, h3: 13 };
@@ -31,7 +32,7 @@ export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; 
     <button type="button" className={`wr-chip ${extra}${on ? ' on' : ''}`} onMouseDown={keep} onClick={onClick} title={title}>{label}</button>
   );
   const styleChip = (s: A.StyleName, label: string, cmd: string) => chip(label, style === s, () => run(cmd), '', `${label} style`);
-  const fontValue = ts.fontFamily ?? 'Archivo';
+  const fontValue = ts.fontFamily ?? DEFAULT_FONT;
   const sizeValue = ts.fontSize ?? STYLE_PT[style];
   const list = A.inList(state);
 
@@ -46,11 +47,8 @@ export function Toolbar({ model, api, compact, onPanels }: { model: WriteModel; 
         {styleChip('quote', 'Quote', 'write.format.style.quote')}
       </div>
       <div className="tsep" />
-      <select className="wr-select" value={FONTS.includes(fontValue) ? fontValue : '__other'} title="Font"
-        onChange={(e) => { A.setTextStyle(model, { fontFamily: e.target.value === 'Archivo' ? null : e.target.value }); model.view?.focus(); }}>
-        {!FONTS.includes(fontValue) && <option value="__other">{fontValue}</option>}
-        {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
-      </select>
+      <FontPicker value={fontValue} width={150} style={{ padding: '4px 6px', background: 'var(--bg0)', font: '600 12px/1.3 var(--font-ui)' }}
+        onChange={(f) => { A.setTextStyle(model, { fontFamily: f === DEFAULT_FONT ? null : f }); model.view?.focus(); }} />
       <select className="wr-select mono" value={String(sizeValue)} title="Size (pt)"
         onChange={(e) => { A.setTextStyle(model, { fontSize: +e.target.value === STYLE_PT[style] ? null : +e.target.value }); model.view?.focus(); }}>
         {!SIZES.includes(sizeValue) && <option value={String(sizeValue)}>{sizeValue}</option>}

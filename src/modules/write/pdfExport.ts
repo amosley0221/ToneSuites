@@ -1,6 +1,17 @@
 // Real text PDF export with pdf-lib: wraps and paginates using the page setup (size, margins,
 // columns, header/footer), heading sizes, bold/italic, lists, quotes, tables, images, TOC, footnotes.
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFImage, type PDFPage, type RGB } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import archivo500 from '@fontsource/archivo/files/archivo-latin-500-normal.woff?url';
+import archivo500i from '@fontsource/archivo/files/archivo-latin-500-italic.woff?url';
+import archivo700 from '@fontsource/archivo/files/archivo-latin-700-normal.woff?url';
+import archivo700i from '@fontsource/archivo/files/archivo-latin-700-italic.woff?url';
+import mono400 from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff?url';
+import mono400i from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-italic.woff?url';
+import mono700 from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-normal.woff?url';
+import mono700i from '@fontsource/jetbrains-mono/files/jetbrains-mono-latin-700-italic.woff?url';
+import { fontData } from '@/core/fonts';
+import { DEFAULT_FONT, fitText, fontCategory, MONO_FONT, standardFontFor, type FontCategory } from './fonts';
 import type { Mark, Node as PMNode } from 'prosemirror-model';
 import { pageBox, type WriteModel } from './model';
 import { acceptedDoc } from './track';
@@ -26,8 +37,118 @@ export function sanitize(s: string): string {
   return out;
 }
 
-interface Fonts { [key: string]: PDFFont }
-type Family = 'sans' | 'serif' | 'mono';
+type Family = FontCategory;
+
+/** Bundled font files (the same faces the editor shows), by family → variant. */
+const BUNDLED: Record<string, Record<string, string>> = {
+  [DEFAULT_FONT.toLowerCase()]: { r: archivo500, b: archivo700, i: archivo500i, bi: archivo700i },
+  [MONO_FONT.toLowerCase()]: { r: mono400, b: mono700, i: mono400i, bi: mono700i },
+};
+const variant = (bold: boolean, italic: boolean) => (bold ? (italic ? 'bi' : 'b') : italic ? 'i' : 'r');
+const STD: Record<Family, Record<string, StandardFonts>> = {
+  sans: { r: StandardFonts.Helvetica, b: StandardFonts.HelveticaBold, i: StandardFonts.HelveticaOblique, bi: StandardFonts.HelveticaBoldOblique },
+  serif: { r: StandardFonts.TimesRoman, b: StandardFonts.TimesRomanBold, i: StandardFonts.TimesRomanItalic, bi: StandardFonts.TimesRomanBoldItalic },
+  mono: { r: StandardFonts.Courier, b: StandardFonts.CourierBold, i: StandardFonts.CourierOblique, bi: StandardFonts.CourierBoldOblique },
+};
+
+/**
+ * Fonts for one export: bundled Archivo / JetBrains Mono, the user's added and installed fonts (embedded, subset),
+ * and the PDF standard fonts as the fallback. All faces are resolved before layout so measuring stays synchronous.
+ */
+class Fonts {
+  private faces = new Map<string, PDFFont>();
+  private std = new Map<StandardFonts, PDFFont>();
+  private byBytes = new Map<string, Promise<PDFFont | null>>();
+  /** Character sets of embedded (non-standard) fonts. */
+  private charsets = new Map<PDFFont, Set<number>>();
+  constructor(private pdf: PDFDocument, private embed: EmbedLevel) {}
+
+  static key(family: string, bold: boolean, italic: boolean) { return family.toLowerCase() + '|' + variant(bold, italic); }
+
+  /** Load the faces needed for these (family, bold, italic) uses. */
+  async prepare(uses: Iterable<[string, boolean, boolean]>) {
+    for (const [family, bold, italic] of uses) {
+      const key = Fonts.key(family, bold, italic);
+      if (this.faces.has(key)) continue;
+      this.faces.set(key, (this.embed !== 'none' && (await this.load(family, bold, italic))) || (await this.standard(fontCategoryFor(family), bold, italic)));
+    }
+  }
+
+  private async load(family: string, bold: boolean, italic: boolean): Promise<PDFFont | null> {
+    if (standardFontFor(family)) return null;
+    const bundled = BUNDLED[family.toLowerCase()]?.[variant(bold, italic)];
+    if (!bundled && this.embed !== 'all') return null;
+    try {
+      const bytes = bundled ? new Uint8Array(await (await fetch(bundled)).arrayBuffer()) : await fontData(family, bold, italic);
+      if (!bytes?.length) return null;
+      const id = bytes.length + ':' + hashBytes(bytes);
+      let p = this.byBytes.get(id);
+      if (!p) {
+        // The bundled files are Latin subsets whose contextual alternates point at glyphs that aren't there.
+        p = this.pdf.embedFont(bytes, { subset: true, features: bundled ? { calt: false } : undefined }).then((f) => {
+          this.charsets.set(f, new Set(f.getCharacterSet()));
+          f.widthOfTextAtSize('Ag', 10); // fail here (and fall back) rather than while drawing
+          return f;
+        }).catch(() => null);
+        this.byBytes.set(id, p);
+      }
+      return await p;
+    } catch { return null; }
+  }
+
+  async standard(cat: Family, bold: boolean, italic: boolean): Promise<PDFFont> {
+    const name = STD[cat][variant(bold, italic)];
+    let f = this.std.get(name);
+    if (!f) { f = await this.pdf.embedFont(name); this.std.set(name, f); }
+    return f;
+  }
+
+  get(family: string, bold: boolean, italic: boolean): PDFFont {
+    return this.faces.get(Fonts.key(family, bold, italic)) ?? this.faces.get(Fonts.key(family, bold, false)) ?? this.faces.get(Fonts.key(DEFAULT_FONT, false, false))!;
+  }
+
+  /** Text the font can draw: WinAnsi substitution for standard fonts, the font's own glyphs for embedded ones. */
+  text(font: PDFFont, s: string): string {
+    const cs = this.charsets.get(font);
+    return cs ? fitText(s, (c) => cs.has(c), sanitize) : sanitize(s);
+  }
+
+  get embedded() { return this.charsets.size > 0; }
+}
+
+function fontCategoryFor(family: string): Family { return standardFontFor(family) ?? fontCategory(family); }
+
+function hashBytes(b: Uint8Array): number {
+  let h = 0x811c9dc5;
+  const step = Math.max(1, Math.floor(b.length / 4096));
+  for (let i = 0; i < b.length; i += step) h = Math.imul(h ^ b[i], 0x01000193);
+  return h >>> 0;
+}
+
+/** Every (family, bold, italic) the document's text uses, so the faces can be loaded up front. */
+export function fontUses(doc: PMNode): [string, boolean, boolean][] {
+  const out = new Map<string, [string, boolean, boolean]>();
+  const add = (f: string, b: boolean, i: boolean) => out.set(Fonts.key(f, b, i), [f, b, i]);
+  add(DEFAULT_FONT, false, false); // header, footer, lists, TOC, notes
+  doc.descendants((n, _pos, parent) => {
+    if (n.type.name === 'code_block') { add(MONO_FONT, false, false); return false; }
+    if (!n.isInline || !parent) return true;
+    const blockBold = parent.type.name === 'title' || parent.type.name === 'heading';
+    const { family, bold, italic } = runFont(n.marks, blockBold, null);
+    add(family, bold, italic);
+    if (n.type.name === 'footnote') add(family, false, false);
+    return false;
+  });
+  return [...out.values()];
+}
+
+/** Font of a text run from its marks and its block's style. */
+function runFont(marks: readonly Mark[], blockBold: boolean, blockFamily: string | null): { family: string; bold: boolean; italic: boolean } {
+  const has = (n: string) => marks.some((m) => m.type.name === n);
+  const ts = marks.find((m) => m.type.name === 'textStyle');
+  const family = has('code') ? MONO_FONT : ts?.attrs.fontFamily ? String(ts.attrs.fontFamily) : blockFamily ?? DEFAULT_FONT;
+  return { family, bold: blockBold || has('strong'), italic: has('em') };
+}
 
 interface Seg { text: string; font: PDFFont; size: number; color: RGB; underline?: boolean; strike?: boolean; rise?: number; fn?: number; br?: boolean }
 interface PlacedSeg { seg: Seg; x: number; w: number }
@@ -46,30 +167,35 @@ const LINK = rgb(0.08, 0.44, 0.94);
 const INS = rgb(0.08, 0.44, 0.94);
 const DEL = rgb(0.71, 0.14, 0.09);
 
-interface BlockStyle { size: number; lh: number; bold: boolean; before: number; color?: RGB; family?: Family }
+interface BlockStyle { size: number; lh: number; bold: boolean; before: number; color?: RGB; family?: string }
 const STYLES: Record<string, BlockStyle> = {
   paragraph: { size: 15 * PT, lh: 1.65, bold: false, before: 10 * PT },
   title: { size: 40 * PT, lh: 1.08, bold: true, before: 0 },
   h1: { size: 28 * PT, lh: 1.2, bold: true, before: 32 * PT },
   h2: { size: 22 * PT, lh: 1.25, bold: true, before: 28 * PT },
   h3: { size: 17 * PT, lh: 1.3, bold: true, before: 22 * PT },
-  code: { size: 12.5 * PT, lh: 1.5, bold: false, before: 10 * PT, family: 'mono' },
+  code: { size: 12.5 * PT, lh: 1.5, bold: false, before: 10 * PT, family: MONO_FONT },
   note: { size: 9, lh: 1.4, bold: false, before: 2 },
 };
 
 export interface PdfOptions { markup: boolean }
 
 export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: false }): Promise<Uint8Array> {
+  // A font can embed fine and still fail while subsetting on save: retry with only the bundled fonts, then none.
+  for (const level of ['all', 'bundled'] as const) {
+    try { return await buildPdf(model, opts, level); } catch (e) { console.warn(`PDF export with fonts "${level}" failed`, e); }
+  }
+  return buildPdf(model, opts, 'none');
+}
+
+type EmbedLevel = 'all' | 'bundled' | 'none';
+
+async function buildPdf(model: WriteModel, opts: PdfOptions, embedFonts: EmbedLevel): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const fonts: Fonts = {
-    'sans': await pdf.embedFont(StandardFonts.Helvetica), 'sans-b': await pdf.embedFont(StandardFonts.HelveticaBold),
-    'sans-i': await pdf.embedFont(StandardFonts.HelveticaOblique), 'sans-bi': await pdf.embedFont(StandardFonts.HelveticaBoldOblique),
-    'serif': await pdf.embedFont(StandardFonts.TimesRoman), 'serif-b': await pdf.embedFont(StandardFonts.TimesRomanBold),
-    'serif-i': await pdf.embedFont(StandardFonts.TimesRomanItalic), 'serif-bi': await pdf.embedFont(StandardFonts.TimesRomanBoldItalic),
-    'mono': await pdf.embedFont(StandardFonts.Courier), 'mono-b': await pdf.embedFont(StandardFonts.CourierBold),
-    'mono-i': await pdf.embedFont(StandardFonts.CourierOblique), 'mono-bi': await pdf.embedFont(StandardFonts.CourierBoldOblique),
-  };
   const doc = opts.markup ? model.state.doc : acceptedDoc(model.state.doc);
+  if (embedFonts !== 'none') pdf.registerFontkit(fontkit);
+  const fonts = new Fonts(pdf, embedFonts);
+  await fonts.prepare(fontUses(doc));
   const box = pageBox(model.page);
   const pageW = box.w * PT, pageH = box.h * PT;
   const mL = box.left * PT, mR = box.right * PT, mT = box.top * PT, mB = box.bottom * PT;
@@ -156,6 +282,7 @@ export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: f
     if (!target) return { headingPages: hp };
 
     const total = pages.length;
+    const hfFont = fonts.get(DEFAULT_FONT, false, false);
     pages.forEach((pg, pi) => {
       const page = target.addPage([pageW, pageH]);
       for (const { col: c, y: yy, item } of pg.items) drawItem(page, item, mL + c * (colW + gutter), pageH - mT - yy);
@@ -167,16 +294,16 @@ export async function pdfBytes(model: WriteModel, opts: PdfOptions = { markup: f
       }
       const first = pi === 0 && model.page.differentFirst;
       if (model.page.header && !first) {
-        const t = sanitize(model.page.header.replace(/\{page\}/g, String(pi + 1)).replace(/\{pages\}/g, String(total)));
-        const w = fonts.sans.widthOfTextAtSize(t, 8.5);
-        page.drawText(t, { x: (pageW - w) / 2, y: pageH - mT / 2, size: 8.5, font: fonts.sans, color: MUTE });
+        const t = fonts.text(hfFont, model.page.header.replace(/\{page\}/g, String(pi + 1)).replace(/\{pages\}/g, String(total)));
+        const w = hfFont.widthOfTextAtSize(t, 8.5);
+        page.drawText(t, { x: (pageW - w) / 2, y: pageH - mT / 2, size: 8.5, font: hfFont, color: MUTE });
       }
       if ((model.page.footer || model.page.pageNumbers) && !first) {
         let t = model.page.footer.replace(/\{page\}/g, String(pi + 1)).replace(/\{pages\}/g, String(total));
         if (model.page.pageNumbers && !/\{page\}/.test(model.page.footer)) t = (t ? t + '   ' : '') + String(pi + 1);
-        t = sanitize(t);
-        const w = fonts.sans.widthOfTextAtSize(t, 8.5);
-        page.drawText(t, { x: (pageW - w) / 2, y: mB / 2 - 4, size: 8.5, font: fonts.sans, color: MUTE });
+        t = fonts.text(hfFont, t);
+        const w = hfFont.widthOfTextAtSize(t, 8.5);
+        page.drawText(t, { x: (pageW - w) / 2, y: mB / 2 - 4, size: 8.5, font: hfFont, color: MUTE });
       }
     });
     return { headingPages: hp };
@@ -230,9 +357,10 @@ class Layout {
     private numbering: WriteModel['footnotes']['numbering'], private markup: boolean, private headingPages: number[], private headingLevels: number[]) {}
   private noteCache = new Map<string, Item[]>();
 
-  font(family: Family, bold: boolean, italic: boolean): PDFFont {
-    return this.fonts[family + (bold || italic ? '-' + (bold ? 'b' : '') + (italic ? 'i' : '') : '')];
-  }
+  font(family: string, bold: boolean, italic: boolean): PDFFont { return this.fonts.get(family, bold, italic); }
+  private get sans() { return this.fonts.get(DEFAULT_FONT, false, false); }
+  private get mono() { return this.fonts.get(MONO_FONT, false, false); }
+  private fit(font: PDFFont, s: string) { return this.fonts.text(font, s); }
 
   segments(node: PMNode, st: BlockStyle): (Seg | { image: PMNode })[] {
     const out: (Seg | { image: PMNode })[] = [];
@@ -240,9 +368,10 @@ class Layout {
       const marks = c.marks;
       const has = (n: string) => marks.some((m) => m.type.name === n);
       const ts = marks.find((m) => m.type.name === 'textStyle') as Mark | undefined;
-      const family: Family = has('code') ? 'mono' : ts?.attrs.fontFamily ? familyOf(ts.attrs.fontFamily) : st.family ?? 'sans';
+      const rf = runFont(marks, st.bold, st.family ?? null);
+      const family = rf.family;
       const size = ts?.attrs.fontSize ? ts.attrs.fontSize : st.size;
-      const font = this.font(family, st.bold || has('strong'), has('em'));
+      const font = this.font(family, rf.bold, rf.italic);
       let color = st.color ?? INK;
       if (ts?.attrs.color) color = parseColor(ts.attrs.color) ?? color;
       const link = has('link');
@@ -251,11 +380,12 @@ class Layout {
       const del = this.markup && has('deletion');
       if (ins) color = INS;
       if (del) color = DEL;
-      if (c.isText) out.push({ text: sanitize(c.text!), font, size, color, underline: has('underline') || link || ins, strike: has('strike') || del });
+      if (c.isText) out.push({ text: this.fit(font, c.text!), font, size, color, underline: has('underline') || link || ins, strike: has('strike') || del });
       else if (c.type.name === 'hard_break') out.push({ text: '', font, size, color, br: true });
       else if (c.type.name === 'footnote') {
         this.notes.push(String(c.attrs.text || ''));
-        out.push({ text: sanitize(footnoteLabel(this.notes.length, this.numbering)), font: this.font(family, false, false), size: size * 0.65, color, rise: size * 0.35, fn: this.notes.length - 1 });
+        const lf = this.font(family, false, false);
+        out.push({ text: this.fit(lf, footnoteLabel(this.notes.length, this.numbering)), font: lf, size: size * 0.65, color, rise: size * 0.35, fn: this.notes.length - 1 });
       } else if (c.type.name === 'image') out.push({ image: c });
     });
     return out;
@@ -310,7 +440,7 @@ class Layout {
       if (!buf.length && !force) return;
       const lines = this.wrap(buf, width);
       lines.forEach((line) => {
-        const markerFont = this.font('sans', false, false);
+        const markerFont = this.sans;
         items.push({
           kind: 'line', line, x: indent, width, h: line.maxSize * lh, before: first ? st.before : 0, align: node.attrs.align ?? null, bar: extra.bar,
           marker: first && extra.marker ? { text: extra.marker, x: indent - markerFont.widthOfTextAtSize(extra.marker, st.size) - 6, font: markerFont, size: st.size } : undefined,
@@ -348,8 +478,8 @@ class Layout {
         const st = STYLES.code;
         const segs: Seg[] = [];
         node.textContent.split('\n').forEach((line, i) => {
-          if (i) segs.push({ text: '', font: this.fonts.mono, size: st.size, color: INK, br: true });
-          segs.push({ text: sanitize(line), font: this.fonts.mono, size: st.size, color: INK });
+          if (i) segs.push({ text: '', font: this.mono, size: st.size, color: INK, br: true });
+          segs.push({ text: this.fit(this.mono, line), font: this.mono, size: st.size, color: INK });
         });
         return this.wrap(segs, w).map((line, i) => ({ kind: 'line', line, x: indent, width: w, h: line.maxSize * st.lh, before: i === 0 ? st.before : 0, align: null }) as Item);
       }
@@ -367,7 +497,7 @@ class Layout {
           const marker = name === 'bullet_list' ? '•' : `${(node.attrs.order ?? 1) + i}.`;
           li.forEach((c, _o2, j) => {
             if (j === 0 && c.isTextblock) {
-              const its = this.textBlock(c, { ...STYLES.paragraph, before: i === 0 ? STYLES.paragraph.before : 2 }, listIndent, this.width - listIndent, { marker: sanitize(marker), bar });
+              const its = this.textBlock(c, { ...STYLES.paragraph, before: i === 0 ? STYLES.paragraph.before : 2 }, listIndent, this.width - listIndent, { marker: this.fit(this.sans, marker), bar });
               out.push(...its);
             } else out.push(...this.block(c, listIndent, quote));
           });
@@ -383,11 +513,11 @@ class Layout {
         entries.forEach((e, i) => {
           const page = this.headingPages.length && order[i] != null ? (this.headingPages[order[i]] ?? e.page) : e.page;
           const x = indent + (e.level - minLevel) * 14;
-          const font = this.fonts.sans;
+          const font = this.sans;
           const size = 10.5;
           const num = node.attrs.pageNumbers ? String(page) : '';
           const nw = font.widthOfTextAtSize(num, size);
-          let text = sanitize(e.text);
+          let text = this.fit(font, e.text);
           const avail = w - (x - indent) - nw - 12;
           while (text.length > 3 && font.widthOfTextAtSize(text, size) > avail) text = text.slice(0, -2);
           const tw = font.widthOfTextAtSize(text, size);
@@ -439,21 +569,15 @@ class Layout {
     const hit = this.noteCache.get(key);
     if (hit) return hit;
     const st = STYLES.note;
-    const label = sanitize(footnoteLabel(i + 1, this.numbering));
+    const label = this.fit(this.sans, footnoteLabel(i + 1, this.numbering));
     const segs: Seg[] = [
-      { text: label + ' ', font: this.fonts.sans, size: st.size * 0.8, color: INK, rise: 2 },
-      { text: sanitize(text), font: this.fonts.sans, size: st.size, color: INK },
+      { text: label + ' ', font: this.sans, size: st.size * 0.8, color: INK, rise: 2 },
+      { text: this.fit(this.sans, text), font: this.sans, size: st.size, color: INK },
     ];
     const items = this.wrap(segs, width).map((line, j) => ({ kind: 'line', line, x: 0, width, h: st.size * st.lh, before: j === 0 ? st.before : 0, align: null }) as Item);
     this.noteCache.set(key, items);
     return items;
   }
-}
-
-function familyOf(name: string): Family {
-  if (/mono|courier|consolas/i.test(name)) return 'mono';
-  if (/georgia|times|garamond|cambria|serif/i.test(name) && !/sans/i.test(name)) return 'serif';
-  return 'sans';
 }
 
 function parseColor(c: string): RGB | null {

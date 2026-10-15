@@ -1,12 +1,13 @@
 // Deck inspector (280px): layout grid, theme, transition, selection properties, animation, export.
 import React from 'react';
 import type { ModuleApi } from '@/core/types';
-import { Button, Checkbox, Eyebrow, Segmented, Select } from '@/ui';
+import { Button, Checkbox, Eyebrow, Segmented } from '@/ui';
+import { FontPicker } from '@/ui/FontPicker';
 import { IMAGE_EXTS } from './commands';
 import { extMime, type DeckDoc } from './doc';
 import { LayoutThumb } from './LayoutThumb';
 import {
-  ANIM_EFFECTS, BG_PRESETS, fontSizeOf, FONT_CHOICES, masterOf, slideBg, TRANSITIONS,
+  ANIM_EFFECTS, BG_PRESETS, fontSizeOf, masterOf, slideBg, TRANSITIONS,
   type AnimEffect, type El, type TextEl, type Transition,
 } from './model';
 import * as ops from './ops';
@@ -57,10 +58,10 @@ export function Inspector({ doc, api, compact }: { doc: DeckDoc; api: ModuleApi;
           <ColorField value={bg} title="Custom background (this slide)" onChange={(v) => set(() => { if (s) s.bg = v; }, 'slide-bg')} />
         </div>
         <Row label="Title font">
-          <Select value={d.theme.titleFont} options={FONT_CHOICES} width={140} onChange={(v) => set(() => { d.theme.titleFont = v; })} />
+          <FontPicker value={d.theme.titleFont} width={140} onChange={(v) => set(() => { d.theme.titleFont = v; })} />
         </Row>
         <Row label="Body font">
-          <Select value={d.theme.bodyFont} options={FONT_CHOICES} width={140} onChange={(v) => set(() => { d.theme.bodyFont = v; })} />
+          <FontPicker value={d.theme.bodyFont} width={140} onChange={(v) => set(() => { d.theme.bodyFont = v; })} />
         </Row>
         <Row label="Accent">
           <ColorField value={d.theme.accent} onChange={(v) => set(() => { d.theme.accent = v; }, 'accent')} />
@@ -171,7 +172,7 @@ function TextProps({ doc, el }: { doc: DeckDoc; el: TextEl }) {
   return (
     <>
       <Row label="Font">
-        <Select value={st.font ?? ''} width={140} options={[{ value: '', label: 'Theme' }, ...FONT_CHOICES.map((f) => ({ value: f, label: f }))]}
+        <FontPicker value={st.font ?? ''} width={140} allowEmpty emptyLabel="Theme"
           onChange={(v) => set(() => { if (v) st.font = v; else delete st.font; })} />
       </Row>
       <Row label="Size">

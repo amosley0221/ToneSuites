@@ -8,7 +8,8 @@ import { defaultStyles, type LayerStyles, type PixelDoc, type TextData } from '.
 import { hexToRgb, hsvToRgb, rgbToHex, rgbToHsv } from '../engine/img';
 import { addAdjustmentLayer, applyAdjustDestructive, clearPreview, previewPixels, requirePixelLayer, UserError } from '../engine/ops';
 import { brushTip } from '../engine/paint';
-import { FONT_FAMILIES, FONT_WEIGHTS, rerender } from '../engine/render';
+import { FontPicker } from '@/ui/FontPicker';
+import { afterFontReady, FONT_WEIGHTS, fontString, rerender } from '../engine/render';
 import { CanvasThumb, Check, Chip, ColorSwatch, Label, NumField, Planned } from './ui';
 
 type Toast = (m: string, t?: 'info' | 'error') => void;
@@ -194,13 +195,21 @@ export function TypePanel({ doc }: { doc: PixelDoc }) {
   const t: TextData = l?.text ?? doc.ui.type;
   const apply = (patch: Partial<TextData>) => {
     Object.assign(doc.ui.type, patch);
-    if (l?.text) { l.text = { ...l.text, ...patch }; rerender(l); doc.commit('Type settings'); } else doc.emit();
+    if (l?.text) {
+      const next = { ...l.text, ...patch };
+      l.text = next;
+      // Draw (and record the undo step) once the face is loaded, so the layer never keeps fallback pixels.
+      if (!afterFontReady(next, () => { if (l.text === next) { rerender(l); doc.commit('Type settings'); } })) doc.emit();
+    } else {
+      void document.fonts?.load(fontString(doc.ui.type)).catch(() => null); // ready for the next type layer
+      doc.emit();
+    }
   };
   return (
     <div style={{ ...pad, gap: 12 }}>
       <Label>Character{l ? ` · ${l.name}` : ' · defaults for new type'}</Label>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-        <div style={{ gridColumn: 'span 2' }}><Select value={t.font} width="100%" options={FONT_FAMILIES} onChange={(f) => apply({ font: f })} /></div>
+        <div style={{ gridColumn: 'span 2' }}><FontPicker value={t.font} width="100%" onChange={(f) => apply({ font: f })} /></div>
         <Select value={String(t.weight)} width="100%" options={FONT_WEIGHTS} onChange={(w) => apply({ weight: Number(w) })} />
         <NumField value={Math.round(t.size * 10) / 10} unit="px" min={1} max={2000} step={0.5} width={110} onChange={(s) => apply({ size: s })} title="Size" />
         <NumField label="Leading" value={t.leading} min={0.5} max={4} step={0.05} width={60} onChange={(v) => apply({ leading: v })} />

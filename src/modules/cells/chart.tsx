@@ -55,16 +55,19 @@ export function chartDataFor(wb: Workbook, def: Pick<ChartDef, 'sheetId' | 'rang
   const g0 = parseRange(def.range);
   if (!s || !g0) return { categories: [], series: [] };
   const g = wb.clampToUsed(s, g0);
-  const rows = Math.min(g.r1 - g.r0 + 1, 2000);
   const cols = Math.min(g.c1 - g.c0 + 1, 50);
+  // Rows hidden by a filter are left out of the chart (as in Excel).
+  const hidden = wb.hiddenRows(s);
+  const rowIdx: number[] = [];
+  for (let r = g.r0; r <= g.r1 && rowIdx.length < 2000; r++) if (!hidden.has(r)) rowIdx.push(r);
   const values: unknown[][] = [];
   const texts: string[][] = [];
-  for (let i = 0; i < rows; i++) {
+  for (const r of rowIdx) {
     const vr: unknown[] = [];
     const tr: string[] = [];
     for (let j = 0; j < cols; j++) {
-      vr.push(wb.value(s, g.r0 + i, g.c0 + j));
-      tr.push(wb.display(s, g.r0 + i, g.c0 + j).text);
+      vr.push(wb.value(s, r, g.c0 + j));
+      tr.push(wb.display(s, r, g.c0 + j).text);
     }
     values.push(vr);
     texts.push(tr);

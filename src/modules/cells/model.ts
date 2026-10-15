@@ -99,6 +99,8 @@ export interface ClipState {
   cut: boolean;
   tsv: string;
   cells: (CellData | undefined)[][];
+  /** Source row of each block row, when filtered-out rows were skipped by the copy. */
+  rows?: number[];
 }
 
 export interface Display {
@@ -109,7 +111,8 @@ export interface Display {
 
 type UndoEntry =
   | { kind: 'cells'; sheetId: string; before: [number, CellData | undefined][]; after: [number, CellData | undefined][] }
-  | { kind: 'snap'; before: string; after?: string };
+  | { kind: 'snap'; before: string; after?: string }
+  | { kind: 'group'; entries: UndoEntry[] };
 
 export const DEFAULT_COL_W = 140;
 export const DEFAULT_ROW_H = 28;
@@ -124,11 +127,25 @@ export function newSheet(name: string): Sheet {
   };
 }
 
+/**
+ * Slash dates follow the device's locale order: "03/04/2024" is 4 March in the US and 3 April elsewhere.
+ * (Mixing both orders would turn half of a US date column into dates and leave the rest as text.)
+ */
+export function localeDateFormats(locale?: string): string[] {
+  let monthFirst = false;
+  try {
+    const parts = new Intl.DateTimeFormat(locale).formatToParts(new Date(2000, 11, 31));
+    const order = parts.filter((p) => p.type === 'day' || p.type === 'month').map((p) => p.type);
+    monthFirst = order[0] === 'month';
+  } catch { /* no Intl: day first */ }
+  return monthFirst ? ['YYYY-MM-DD', 'YYYY/MM/DD', 'MM/DD/YYYY', 'MM/DD/YY'] : ['YYYY-MM-DD', 'YYYY/MM/DD', 'DD/MM/YYYY', 'DD/MM/YY'];
+}
+
 const HF_CONFIG = {
   licenseKey: 'gpl-v3',
   maxRows: MAX_ROWS,
   maxColumns: MAX_COLS,
-  dateFormats: ['YYYY-MM-DD', 'DD/MM/YYYY', 'DD/MM/YY'],
+  dateFormats: localeDateFormats(),
   useArrayArithmetic: true,
 };
 
@@ -137,8 +154,9 @@ export function toHF(cell: CellData | undefined): RawCellContent {
   if (!cell) return null;
   const v = cell.v;
   if (v === '') return null;
-  if (cell.f?.nf === 'text' && !v.startsWith("'")) return "'" + v;
+  // A formula keeps calculating when its cell is later formatted as Text (as in Excel).
   if (v.length > 1 && v.startsWith('=')) return v;
+  if (cell.f?.nf === 'text' && !v.startsWith("'")) return "'" + v;
   const t = v.trim();
   // Thousands separators: "1,234.50" / "-$1,234" / "12,000%" → strip commas so HF parses a number.
   if (/^[-+]?[$€£]?\d{1,3}(,\d{3})+(\.\d+)?%?$/.test(t)) return t.replace(/,/g, '');
@@ -181,6 +199,7 @@ export class Workbook {
   private listeners = new Set<(data: boolean) => void>();
   private undoStack: UndoEntry[] = [];
   private redoStack: UndoEntry[] = [];
+  private grouping: UndoEntry[] | null = null;
 
   constructor(sheets?: Sheet[]) {
     this.sheets = sheets && sheets.length ? sheets : [newSheet('Sheet 1')];
@@ -326,16 +345,17 @@ export class Workbook {
   currentRegion(s: Sheet, r: number, c: number): Range {
     let g: Range = { r0: r, c0: c, r1: r, c1: c };
     const filled = (rr: number, cc: number) => rr >= 0 && cc >= 0 && !this.isEmpty(s, rr, cc);
+    const b = this.bounds(s);
+    const rowHas = (rr: number) => { for (let cc = g.c0 - 1; cc <= g.c1 + 1; cc++) if (filled(rr, cc)) return true; return false; };
+    const colHas = (cc: number) => { for (let rr = g.r0 - 1; rr <= g.r1 + 1; rr++) if (filled(rr, cc)) return true; return false; };
+    // Grow each edge as far as it goes before re-checking the others (a 50,000-row list takes one pass down).
     let grew = true;
-    let guard = 0;
-    while (grew && guard++ < 10000) {
+    while (grew) {
       grew = false;
-      const rowHas = (rr: number) => { for (let cc = g.c0 - 1; cc <= g.c1 + 1; cc++) if (filled(rr, cc)) return true; return false; };
-      const colHas = (cc: number) => { for (let rr = g.r0 - 1; rr <= g.r1 + 1; rr++) if (filled(rr, cc)) return true; return false; };
-      if (g.r0 > 0 && rowHas(g.r0 - 1)) { g = { ...g, r0: g.r0 - 1 }; grew = true; }
-      if (rowHas(g.r1 + 1)) { g = { ...g, r1: g.r1 + 1 }; grew = true; }
-      if (g.c0 > 0 && colHas(g.c0 - 1)) { g = { ...g, c0: g.c0 - 1 }; grew = true; }
-      if (colHas(g.c1 + 1)) { g = { ...g, c1: g.c1 + 1 }; grew = true; }
+      while (g.r0 > 0 && rowHas(g.r0 - 1)) { g = { ...g, r0: g.r0 - 1 }; grew = true; }
+      while (g.r1 + 1 < b.rows && rowHas(g.r1 + 1)) { g = { ...g, r1: g.r1 + 1 }; grew = true; }
+      while (g.c0 > 0 && colHas(g.c0 - 1)) { g = { ...g, c0: g.c0 - 1 }; grew = true; }
+      while (g.c1 + 1 < b.cols && colHas(g.c1 + 1)) { g = { ...g, c1: g.c1 + 1 }; grew = true; }
     }
     return g;
   }
@@ -423,24 +443,44 @@ export class Workbook {
 
   // ----- undo -----
   private pushUndo(e: UndoEntry) {
+    this.redoStack = [];
+    if (this.grouping) { this.grouping.push(e); return; }
     this.undoStack.push(e);
     if (this.undoStack.length > 200) this.undoStack.shift();
     // Snapshots can be big — keep only the 20 most recent.
+    const hasSnap = (u: UndoEntry): boolean => u.kind === 'snap' || (u.kind === 'group' && u.entries.some(hasSnap));
     let snaps = 0;
     for (let i = this.undoStack.length - 1; i >= 0; i--) {
-      const u = this.undoStack[i];
-      if (u.kind === 'snap' && ++snaps > 20) { this.undoStack.splice(0, i + 1); break; }
+      if (hasSnap(this.undoStack[i]) && ++snaps > 20) { this.undoStack.splice(0, i + 1); break; }
     }
-    this.redoStack = [];
   }
   get canUndo() { return this.undoStack.length > 0; }
   get canRedo() { return this.redoStack.length > 0; }
 
+  /** Run several edits (cells, structure, sheets) as one undo step. */
+  group(fn: () => void) {
+    if (this.grouping) { fn(); return; }
+    const list: UndoEntry[] = [];
+    this.grouping = list;
+    try { fn(); } finally { this.grouping = null; }
+    if (list.length) this.pushUndo(list.length === 1 ? list[0] : { kind: 'group', entries: list });
+  }
+
+  private undoEntry(e: UndoEntry) {
+    if (e.kind === 'cells') this.applyCellEntries(e.sheetId, e.before);
+    else if (e.kind === 'snap') { e.after = this.snapshot(); this.restore(e.before); }
+    else for (let i = e.entries.length - 1; i >= 0; i--) this.undoEntry(e.entries[i]);
+  }
+  private redoEntry(e: UndoEntry) {
+    if (e.kind === 'cells') this.applyCellEntries(e.sheetId, e.after);
+    else if (e.kind === 'snap') { if (e.after) { const before = this.snapshot(); this.restore(e.after); e.before = before; } }
+    else for (const x of e.entries) this.redoEntry(x);
+  }
+
   undo(): boolean {
     const e = this.undoStack.pop();
     if (!e) return false;
-    if (e.kind === 'cells') this.applyCellEntries(e.sheetId, e.before);
-    else { e.after = this.snapshot(); this.restore(e.before); }
+    this.undoEntry(e);
     this.redoStack.push(e);
     this.emit(true);
     return true;
@@ -448,8 +488,7 @@ export class Workbook {
   redo(): boolean {
     const e = this.redoStack.pop();
     if (!e) return false;
-    if (e.kind === 'cells') this.applyCellEntries(e.sheetId, e.after);
-    else if (e.after) { const before = this.snapshot(); this.restore(e.after); e.before = before; }
+    this.redoEntry(e);
     this.undoStack.push(e);
     this.emit(true);
     return true;
@@ -547,7 +586,9 @@ export class Workbook {
   }
 
   clear(s: Sheet, g: Range, what: 'contents' | 'formats' | 'all') {
-    const changes = this.cellsIn(s, g).map(([r, c, cell]) => ({
+    // Rows hidden by a filter are left alone (as in Excel): clearing what you see never wipes what you don't.
+    const hidden = this.hiddenRows(s);
+    const changes = this.cellsIn(s, g).filter(([r]) => !hidden.has(r)).map(([r, c, cell]) => ({
       r, c,
       cell: what === 'all' ? undefined : what === 'contents' ? (cell.f ? { v: '', f: cell.f } : undefined) : { v: cell.v },
     }));
@@ -556,8 +597,10 @@ export class Workbook {
 
   formatRange(s: Sheet, g: Range, patch: Partial<CellFormat> | ((f: CellFormat, r: number, c: number) => CellFormat)) {
     const gg = this.clampFormatRange(s, g);
+    const hidden = this.hiddenRows(s);
     const changes: { r: number; c: number; cell: CellData | undefined }[] = [];
     for (let r = gg.r0; r <= gg.r1; r++) for (let c = gg.c0; c <= gg.c1; c++) {
+      if (hidden.has(r)) continue; // filtered-out rows keep their formatting
       const prev = this.getCell(s, r, c);
       const base = prev?.f ?? {};
       let f = typeof patch === 'function' ? patch({ ...base }, r, c) : { ...base, ...patch };
@@ -579,7 +622,7 @@ export class Workbook {
 
   // ----- clipboard blocks -----
   /** Paste a block of cells at (r, c). `from` = origin of the block for relative formula shifting. */
-  pasteBlock(s: Sheet, r: number, c: number, block: (CellData | undefined)[][], from?: { r: number; c: number }, valuesOnly = false) {
+  pasteBlock(s: Sheet, r: number, c: number, block: (CellData | undefined)[][], from?: { r: number; c: number; rows?: number[] }, valuesOnly = false) {
     const changes: { r: number; c: number; cell: CellData | undefined }[] = [];
     block.forEach((row, i) => row.forEach((cell, j) => {
       const tr = r + i;
@@ -587,7 +630,7 @@ export class Workbook {
       if (tr >= MAX_ROWS || tc >= MAX_COLS) return;
       if (!cell) { changes.push({ r: tr, c: tc, cell: undefined }); return; }
       let v = cell.v;
-      if (from && v.startsWith('=')) v = shiftFormula(v, tr - (from.r + i), tc - (from.c + j));
+      if (from && v.startsWith('=')) v = shiftFormula(v, tr - (from.rows?.[i] ?? from.r + i), tc - (from.c + j));
       if (valuesOnly) {
         const prev = this.getCell(s, tr, tc);
         changes.push({ r: tr, c: tc, cell: { v, ...(prev?.f ? { f: prev.f } : {}) } });
@@ -608,8 +651,10 @@ export class Workbook {
       for (let i = 2; i < vals.length; i++) if (Math.abs((vals[i] as number) - (vals[i - 1] as number) - d) > 1e-9) return null;
       return d;
     };
+    const hidden = this.hiddenRows(s);
     for (let r = target.r0; r <= target.r1; r++) for (let c = target.c0; c <= target.c1; c++) {
       if (r >= src.r0 && r <= src.r1 && c >= src.c0 && c <= src.c1) continue;
+      if (hidden.has(r)) continue; // filling a filtered list fills only the visible rows
       const sr = src.r0 + (((r - src.r0) % h) + h) % h;
       const sc = src.c0 + (((c - src.c0) % w) + w) % w;
       const cell = this.getCell(s, sr, sc);
@@ -690,11 +735,29 @@ export class Workbook {
   }
 
   deleteRows(s: Sheet, at: number, count: number) {
+    this.deleteRowBlocks(s, [[at, count]]);
+  }
+
+  /** Delete several separate row blocks ([start, count], any order) as one change — e.g. the visible rows of a filtered list. */
+  deleteRowBlocks(s: Sheet, blocks: [number, number][]) {
+    const bl = blocks.filter(([, n]) => n > 0).sort((a, b) => b[0] - a[0]); // bottom-up keeps earlier indexes valid
+    if (!bl.length) return;
+    const starts = bl.map(([a]) => a).reverse();
+    const ends = bl.map(([a, n]) => a + n).reverse();
+    /** New index of row r, or null when it is deleted. */
+    const mapRow = (r: number): number | null => {
+      let removed = 0;
+      for (let i = 0; i < starts.length && starts[i] <= r; i++) {
+        if (r < ends[i]) return null;
+        removed += ends[i] - starts[i];
+      }
+      return r - removed;
+    };
     this.structural(() => {
-      this.hf.removeRows(this.hfId(s), [at, count]);
-      s.cells = this.remap(s.cells, (k) => { const r = keyRow(k); return r < at ? k : r < at + count ? null : cellKey(r - count, keyCol(k)); });
-      s.rowHeights = this.remap(s.rowHeights, (r) => (r < at ? r : r < at + count ? null : r - count));
-      this.shiftRanges(s, (g) => shiftRangeDelete(g, 'row', at, count));
+      this.hf.removeRows(this.hfId(s), ...bl.map(([a, n]) => [a, n] as [number, number]));
+      s.cells = this.remap(s.cells, (k) => { const r = mapRow(keyRow(k)); return r == null ? null : cellKey(r, keyCol(k)); });
+      s.rowHeights = this.remap(s.rowHeights, mapRow);
+      for (const [a, n] of bl) this.shiftRanges(s, (g) => shiftRangeDelete(g, 'row', a, n));
       this.refreshFormulas();
     });
   }

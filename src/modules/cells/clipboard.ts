@@ -10,7 +10,12 @@ export function copySelection(wb: Workbook, cut: boolean): string {
   const g = wb.clampToUsed(s, s.sel.range);
   const texts: string[][] = [];
   const cells: (CellData | undefined)[][] = [];
+  // Copying a filtered list copies only the rows you can see (as in Excel). Cut keeps the whole block.
+  const hidden = cut ? null : wb.hiddenRows(s);
+  const rows: number[] = [];
   for (let r = g.r0; r <= g.r1; r++) {
+    if (hidden?.has(r)) continue;
+    rows.push(r);
     const tr: string[] = [];
     const cr: (CellData | undefined)[] = [];
     for (let c = g.c0; c <= g.c1; c++) {
@@ -22,7 +27,8 @@ export function copySelection(wb: Workbook, cut: boolean): string {
     cells.push(cr);
   }
   const tsv = toClipboardTsv(texts);
-  wb.ui.clip = { sheetId: s.id, range: g, cut, tsv, cells };
+  const skipped = rows.length !== g.r1 - g.r0 + 1;
+  wb.ui.clip = { sheetId: s.id, range: g, cut, tsv, cells, ...(skipped ? { rows } : {}) };
   wb.emit();
   return tsv;
 }
@@ -30,18 +36,22 @@ export function copySelection(wb: Workbook, cut: boolean): string {
 /** Paste text at the selection. Uses the internal clipboard when the text matches what we copied. */
 export function pasteText(wb: Workbook, text: string, valuesOnly = false) {
   wb.commitEdit();
+  wb.group(() => pasteInto(wb, text, valuesOnly));
+}
+
+function pasteInto(wb: Workbook, text: string, valuesOnly: boolean) {
   const s = wb.sheet;
   const { r, c } = { r: s.sel.range.r0, c: s.sel.range.c0 };
   const clip = wb.ui.clip;
   const norm = (t: string) => t.replace(/\r\n/g, '\n').replace(/\n$/, '');
   let block: (CellData | undefined)[][];
-  let from: { r: number; c: number } | undefined;
+  let from: { r: number; c: number; rows?: number[] } | undefined;
   if (clip && norm(clip.tsv) === norm(text)) {
     if (valuesOnly) {
       block = clip.tsv === '' ? [[undefined]] : parseClipboardTsv(text).map((row) => row.map((v) => (v === '' ? undefined : { v })));
     } else {
       block = clip.cells;
-      from = clip.cut ? undefined : { r: clip.range.r0, c: clip.range.c0 };
+      from = clip.cut ? undefined : { r: clip.range.r0, c: clip.range.c0, rows: clip.rows };
     }
   } else {
     block = parseClipboardTsv(text).map((row) => row.map((v) => (v === '' ? undefined : { v })));

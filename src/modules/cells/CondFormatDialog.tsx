@@ -1,14 +1,17 @@
 // Conditional formatting: rules list + rule editor. Rules are applied by the grid renderer.
 import { useState } from 'react';
 import { Dialog } from '@/ui';
-import { parseRange, rangeToA1 } from './address';
+import { MAX_COLS, MAX_ROWS, parseRange, rangeToA1 } from './address';
 import { COND_KINDS, describeRule, evalRule } from './condfmt';
 import { uid, type CondKind, type CondRule, type Workbook } from './model';
 import { ColorWell, Label, monoInput, stopEditKeys, TB } from './widgets';
 
 export function CondFormatDialog({ wb, onClose }: { wb: Workbook; onClose: () => void }) {
   const s = wb.sheet;
-  const selRange = rangeToA1(wb.clampToUsed(s, s.sel.range));
+  // Whole rows/columns are limited to the used area; a normal selection (even of empty cells to fill later) is kept.
+  const sg = s.sel.range;
+  const whole = sg.r1 >= MAX_ROWS - 1 || sg.c1 >= MAX_COLS - 1;
+  const selRange = rangeToA1(whole ? wb.clampToUsed(s, sg) : sg);
   const [rules, setRules] = useState<CondRule[]>(() => s.condFormats.map((r) => ({ ...r, style: { ...r.style } })));
   const newRule = (): CondRule => ({ id: uid(), range: selRange, kind: 'gt', a: '0', style: { color: '#e5484d' } });
   const [cur, setCur] = useState<string | null>(() => rules[0]?.id ?? null);

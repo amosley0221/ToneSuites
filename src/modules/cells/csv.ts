@@ -16,6 +16,15 @@ export function sniffDelimiter(text: string, filename = ''): string {
   return best;
 }
 
+/**
+ * Raw cell input for a field read from a CSV/TSV file. IDs, ZIP codes and account numbers such as
+ * "001234" or 16+ digit numbers would lose their leading zeros / precision as numbers, so they stay text.
+ */
+export function delimitedInput(v: string): string {
+  if (/^0\d+$/.test(v) || /^\d{16,}$/.test(v)) return "'" + v;
+  return v;
+}
+
 /** Parse delimited text into rows of fields. Handles quoted fields with embedded delimiters, quotes and newlines. */
 export function parseDelimited(text: string, delim = ','): string[][] {
   const rows: string[][] = [];
@@ -49,7 +58,7 @@ export function parseDelimited(text: string, delim = ','): string[][] {
 }
 
 function quoteField(s: string, delim: string): string {
-  if (s.includes('"') || s.includes(delim) || s.includes('\n') || s.includes('\r') || /^\s|\s$/.test(s)) {
+  if (s.includes('"') || s.includes(delim) || s.includes('\n') || s.includes('\r')) {
     return '"' + s.replace(/"/g, '""') + '"';
   }
   return s;

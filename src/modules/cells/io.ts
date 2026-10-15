@@ -1,7 +1,7 @@
 // Foreign formats: XLSX (exceljs) and CSV/TSV, plus the native workbook.json payload.
 import { DetailedCellError } from 'hyperformula';
 import { cellKey, keyCol, keyRow, parseRange, rangeToA1, toA1 } from './address';
-import { parseDelimited, sniffDelimiter, toDelimited } from './csv';
+import { delimitedInput, parseDelimited, sniffDelimiter, toDelimited } from './csv';
 import { loadWorkbook, newSheet, Workbook, workbookToJSON, type CellFormat, type Sheet, type WorkbookJSON } from './model';
 import { dateToSerial, fromExcelFormat, toExcelFormat, type NumFmt } from './numfmt';
 
@@ -36,17 +36,25 @@ export function workbookFromDelimited(text: string, filename: string): Workbook 
 
 export function fillSheet(s: Sheet, rows: string[][], r0 = 0, c0 = 0) {
   rows.forEach((row, r) => row.forEach((v, c) => {
-    if (v !== '') s.cells.set(cellKey(r0 + r, c0 + c), { v });
+    if (v !== '') s.cells.set(cellKey(r0 + r, c0 + c), { v: delimitedInput(v) });
   }));
 }
 
-/** Displayed text of the used range (what Excel writes to CSV). */
+/**
+ * Text of the used range for CSV/TSV. Plain typed/imported values are written exactly as entered, so an
+ * opened CSV saves back unchanged (dates keep "07/14/2007", IDs keep "001234"); formulas and cells with a
+ * number format are written as displayed.
+ */
 export function sheetToRows(wb: Workbook, s: Sheet): string[][] {
   const b = wb.bounds(s);
   const out: string[][] = [];
   for (let r = 0; r < b.rows; r++) {
     const row: string[] = [];
-    for (let c = 0; c < b.cols; c++) row.push(wb.display(s, r, c).text);
+    for (let c = 0; c < b.cols; c++) {
+      const cell = wb.getCell(s, r, c);
+      const plain = cell && !cell.v.startsWith('=') && !cell.f?.nf && cell.f?.dp == null;
+      row.push(plain ? (cell.v.startsWith("'") ? cell.v.slice(1) : cell.v) : wb.display(s, r, c).text);
+    }
     out.push(row);
   }
   return out;

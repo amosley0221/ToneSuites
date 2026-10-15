@@ -2,7 +2,7 @@
 import type { CommandHandler, ModuleApi } from '@/core/types';
 import { colToLetters, MAX_COLS, MAX_ROWS, normRange, parseRange, rangeToA1, shiftFormula, toA1, type Range } from './address';
 import { copySelection, pasteText } from './clipboard';
-import { parseDelimited, sniffDelimiter } from './csv';
+import { delimitedInput, parseDelimited, sniffDelimiter } from './csv';
 import { autofitWidth } from './Grid';
 import { workbookFromXlsx } from './io';
 import { DEFAULT_COL_W, DEFAULT_ROW_H, type CellData, type CellFormat, type Sheet, type Workbook } from './model';
@@ -35,6 +35,7 @@ function dataRange(wb: Workbook, s: Sheet): Range {
 function looksLikeHeader(wb: Workbook, s: Sheet, g: Range): boolean {
   if (g.r1 <= g.r0) return false;
   if (s.filter && s.filter.range.r0 === g.r0) return true;
+  if (s.freeze.rows > 0 && g.r0 === s.freeze.rows - 1) return true; // a frozen title row is a header
   let anyText = false;
   for (let c = g.c0; c <= g.c1; c++) {
     const v = wb.value(s, g.r0, c);
@@ -170,13 +171,16 @@ export function cellsCommands(getModel: () => Workbook | undefined, api: ModuleA
   const insertSheetFrom = async (wb: Workbook, kind: 'delimited' | 'xlsx') => {
     if (kind === 'delimited') {
       const files = await api.pickFile(['csv', 'tsv', 'txt'], true);
-      for (const f of files) {
-        const text = new TextDecoder().decode(f.bytes);
-        const rows = parseDelimited(text, sniffDelimiter(text, f.name));
-        const ns = wb.addSheet(f.name.replace(/\.[^.]+$/, '').slice(0, 28).replace(/[\\/?*[\]:]/g, ' ').trim() || undefined);
-        wb.writeGrid(ns, 0, 0, rows);
-        wb.select(0, 0);
-      }
+      wb.commitEdit();
+      wb.group(() => {
+        for (const f of files) {
+          const text = new TextDecoder().decode(f.bytes);
+          const rows = parseDelimited(text, sniffDelimiter(text, f.name)).map((row) => row.map(delimitedInput));
+          const ns = wb.addSheet(f.name.replace(/\.[^.]+$/, '').slice(0, 28).replace(/[\\/?*[\]:]/g, ' ').trim() || undefined);
+          wb.writeGrid(ns, 0, 0, rows);
+        }
+      });
+      if (files.length) wb.select(0, 0);
       if (files.length) api.toast(`Imported ${files.length} file${files.length > 1 ? 's' : ''} as new sheet${files.length > 1 ? 's' : ''}`);
       return;
     }
@@ -287,8 +291,18 @@ export function cellsCommands(getModel: () => Workbook | undefined, api: ModuleA
     'cells.insert.colsRight': insertCols(true),
     'cells.insert.deleteRows': onSel((wb, s) => {
       const [r0, r1] = selRows(wb, s);
-      wb.deleteRows(s, r0, r1 - r0 + 1);
-      wb.select(r0, s.sel.c);
+      // In a filtered list only the visible rows are deleted (rows hidden by the filter are kept).
+      const hidden = wb.hiddenRows(s);
+      const blocks: [number, number][] = [];
+      for (let r = r0; r <= r1; r++) {
+        if (hidden.has(r)) continue;
+        const last = blocks[blocks.length - 1];
+        if (last && last[0] + last[1] === r) last[1]++; else blocks.push([r, 1]);
+      }
+      wb.deleteRowBlocks(s, blocks);
+      let next = r0;
+      while (wb.hiddenRows(s).has(next)) next++;
+      wb.select(next, s.sel.c);
     }),
     'cells.insert.deleteCols': onSel((wb, s) => {
       const [c0, c1] = selCols(wb, s);

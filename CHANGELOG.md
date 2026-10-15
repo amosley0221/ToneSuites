@@ -7,6 +7,11 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Cells: CSV files keep leading zeros in IDs (001234) and save back exactly as opened.
+- Cells: dates like 03/04/2024 follow your region's day/month order.
+- Cells: deleting, clearing, formatting or filling a filtered list only changes the visible rows, and copying copies only visible rows.
+- Cells: cut-and-paste, pivot to a new sheet and Import CSV each undo in one step; Ctrl+Enter fills the whole selection; colour-scale rules no longer turn text red.
+- Cells: column filters keep what you see when you click away, include rows added below the list, and the row count reflects all column filters together.
 - Paper: Search & redact now covers exactly the matched words; before, part of the matched text could stay visible after applying redactions.
 - Paper: radio-button choices in PDF forms are now saved, and multiline form fields keep a readable text size.
 - Paper: "Flatten form on save" no longer leaves broken references in the saved PDF.

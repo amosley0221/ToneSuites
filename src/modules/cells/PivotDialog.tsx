@@ -70,20 +70,21 @@ export function PivotDialog({ wb, onClose }: { wb: Workbook; onClose: () => void
       if (!head && j >= result.rowLabelCols && typeof cells[i][j] === 'number') f.nf = 'number';
       return Object.keys(f).length ? f : undefined;
     };
-    if (place === 'new') {
-      const name = wb.uniqueSheetName('Pivot');
-      const ns = wb.addSheet(name, wb.active + 1);
-      wb.writeGrid(ns, 0, 0, cells, fmt);
-      wb.structural(() => {
-        ns.freeze = { rows: result.headerRows, cols: 0 };
-        ns.colWidths.set(0, 180);
-      });
-      wb.select(0, 0);
-    } else {
-      const c0 = src.c1 + 2;
-      wb.writeGrid(s, src.r0, c0, cells, fmt);
-      wb.select(src.r0, c0, { r0: src.r0, c0, r1: src.r0 + cells.length - 1, c1: c0 + cells[0].length - 1 });
-    }
+    wb.group(() => {
+      if (place === 'new') {
+        const name = wb.uniqueSheetName('Pivot');
+        const ns = wb.addSheet(name, wb.active + 1);
+        wb.writeGrid(ns, 0, 0, cells, fmt);
+        wb.structural(() => {
+          ns.freeze = { rows: result.headerRows, cols: 0 };
+          ns.colWidths.set(0, 180);
+        });
+      } else {
+        wb.writeGrid(s, src.r0, src.c1 + 2, cells, fmt);
+      }
+    });
+    if (place === 'new') wb.select(0, 0);
+    else wb.select(src.r0, src.c1 + 2, { r0: src.r0, c0: src.c1 + 2, r1: src.r0 + cells.length - 1, c1: src.c1 + 2 + cells[0].length - 1 });
     onClose();
   };
 

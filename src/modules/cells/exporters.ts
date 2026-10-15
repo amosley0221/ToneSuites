@@ -7,6 +7,9 @@ import { hexToRgb } from './condfmt';
 
 const base = (title: string) => title.replace(/\.(tone|xlsx|csv|tsv)$/i, '') || 'Workbook';
 
+/** Header rows: frozen rows and the AutoFilter header row (bold, shaded, repeated on every PDF page). */
+const isHead = (s: Sheet, r: number) => r < s.freeze.rows || (!!s.filter && r === s.filter.range.r0);
+
 /** Visible (non-filtered) rows / cols of the used range, plus merge lookups. */
 function layout(wb: Workbook, s: Sheet) {
   const b = wb.bounds(s);
@@ -44,7 +47,7 @@ export function workbookToHtml(wb: Workbook, title: string, which: 'active' | 'a
         const d = wb.display(s, r, c);
         const f = wb.getCell(s, r, c)?.f;
         const st: string[] = [];
-        if (f?.b || r < s.freeze.rows) st.push('font-weight:700');
+        if (f?.b || isHead(s, r)) st.push('font-weight:700');
         if (f?.i) st.push('font-style:italic');
         if (f?.u) st.push('text-decoration:underline');
         if (f?.color) st.push(`color:${f.color}`);
@@ -56,7 +59,7 @@ export function workbookToHtml(wb: Workbook, title: string, which: 'active' | 'a
         if (f?.wrap) st.push('white-space:pre-wrap');
         const span = spanAt.get(k);
         const attrs = (span ? `${span.rs > 1 ? ` rowspan="${span.rs}"` : ''}${span.cs > 1 ? ` colspan="${span.cs}"` : ''}` : '') + (st.length ? ` style="${st.join(';')}"` : '');
-        const tag = r < s.freeze.rows ? 'th' : 'td';
+        const tag = isHead(s, r) ? 'th' : 'td';
         tds.push(`<${tag}${attrs}>${esc(d.text)}</${tag}>`);
       }
       parts.push(`<tr>${tds.join('')}</tr>`);
@@ -118,7 +121,7 @@ export async function workbookToPdf(wb: Workbook, title: string, opts: { orienta
       page.drawText('Empty sheet', { x: M, y: PH - M - 20, size: FS, font: italic, color: rgb(0.45, 0.45, 0.5) });
       continue;
     }
-    const repeat = rows.filter((r) => r < s.freeze.rows);
+    const repeat = rows.filter((r) => isHead(s, r));
     for (const chunk of chunks) {
       let i = 0;
       while (i < rows.length) {
@@ -126,7 +129,7 @@ export async function workbookToPdf(wb: Workbook, title: string, opts: { orienta
         page.drawText(winAnsi(`${base(title)} · ${s.name}`).replace('·', '-'), { x: M, y: PH - M + 12, size: 8, font, color: rgb(0.45, 0.45, 0.5) });
         let y = PH - M - 6;
         const pageRows: number[] = [];
-        if (i > 0) for (const r of repeat) pageRows.push(r);
+        if (i > 0) for (const r of repeat) if (r < rows[i]) pageRows.push(r);
         let used = pageRows.reduce((a, r) => a + rowH(r) * scale, 0);
         let added = 0;
         while (i < rows.length) {
@@ -142,11 +145,11 @@ export async function workbookToPdf(wb: Workbook, title: string, opts: { orienta
             const cell = wb.getCell(s, r, c);
             const f = cell?.f;
             if (f?.fill) page.drawRectangle({ x, y: y - h, width: w, height: h, color: color(f.fill, [1, 1, 1]) });
-            else if (r < s.freeze.rows) page.drawRectangle({ x, y: y - h, width: w, height: h, color: rgb(0.95, 0.945, 0.93) });
+            else if (isHead(s, r)) page.drawRectangle({ x, y: y - h, width: w, height: h, color: rgb(0.95, 0.945, 0.93) });
             if (s.showGrid) page.drawRectangle({ x, y: y - h, width: w, height: h, borderColor: rgb(0.82, 0.82, 0.8), borderWidth: 0.5 });
             const d = wb.display(s, r, c);
             if (d.text) {
-              const fnt = f?.b || r < s.freeze.rows ? bold : f?.i ? italic : font;
+              const fnt = f?.b || isHead(s, r) ? bold : f?.i ? italic : font;
               const size = FS * Math.max(0.6, scale);
               let txt = winAnsi(d.text.replace(/\s*\n\s*/g, ' '));
               const maxW = w - 6 * scale;

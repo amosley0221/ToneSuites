@@ -80,8 +80,6 @@ function Toolbar({ wb, run, compact }: { wb: Workbook; run: (id: string) => void
       </div>
       <div style={{ flex: 1, minWidth: compact ? 8 : 16 }} />
       <TB onClick={() => run('file.export')} title="Convert & export (Ctrl Shift E)" style={{ padding: '6px 12px' }}>Export ▾</TB>
-      <button type="button" onClick={() => run('cells.file.share')} onPointerDown={(e) => e.preventDefault()}
-        style={{ font: 'var(--type-label)', fontSize: 12, fontWeight: 800, padding: '6px 14px', background: 'var(--accent)', color: 'var(--on-accent)', border: 0, cursor: 'pointer', flexShrink: 0 }}>Share</button>
 
       {pop?.kind === 'nf' && (
         <Popover anchor={pop.anchor} onClose={() => setPop(null)} width={240}>

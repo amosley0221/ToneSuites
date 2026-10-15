@@ -1,5 +1,5 @@
 // AutoFilter dropdown for one column: sort, live "contains" search, value checklist.
-// Typing filters the sheet immediately (preview); OK keeps it, Cancel / Esc restores the previous filter.
+// Typing filters the sheet immediately (preview); OK, Enter or clicking outside keeps it, Cancel / Esc restores the previous filter.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Checkbox } from '@/ui';
 import { filterKey, type Sheet, type Workbook } from './model';
@@ -18,48 +18,60 @@ export function FilterMenu({ wb, sheet, col, x, y, onClose }: { wb: Workbook; sh
 
   // Write this column's filter state onto the sheet and redraw (no undo step, not dirty: it's a preview).
   const preview = (contains: string, hiddenVals: string[]) => {
-    sheet.filter!.contains = { ...(sheet.filter!.contains ?? {}), [col]: contains };
-    sheet.filter!.hidden = { ...sheet.filter!.hidden, [col]: hiddenVals };
+    if (!sheet.filter || !wb.sheets.includes(sheet)) return; // filter turned off / sheet deleted meanwhile
+    sheet.filter.contains = { ...(sheet.filter.contains ?? {}), [col]: contains };
+    sheet.filter.hidden = { ...sheet.filter.hidden, [col]: hiddenVals };
     sheet._hidden = undefined;
     wb.emit(false);
   };
   const restore = () => preview(original.current.contains, original.current.hidden);
-  const cancel = () => { restore(); onClose(); };
+  const closed = useRef(false);
+  const mounted = useRef(false);
+  const cancel = () => { closed.current = true; restore(); onClose(); };
 
   useEffect(() => { preview(q, [...hidden]); }, [q, hidden]);
 
-  const matches = useMemo(() => {
-    const key = filterKey(q);
-    let n = 0;
-    for (let r = f.range.r0 + 1; r <= f.range.r1; r++) {
-      if (key && !wb.matchesQuery(sheet, r, col, key)) continue;
-      if (hidden.has(wb.display(sheet, r, col).text)) continue;
-      n++;
-    }
-    return n;
-  }, [q, hidden, wb, sheet, col, f.range.r0, f.range.r1]);
+  // Rows the sheet shows with this preview and every other column's filter (redrawn after each preview emit).
+  const matches = total - (sheet.filter ? wb.hiddenRows(sheet).size : 0);
 
   useEffect(() => {
+    mounted.current = true;
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); cancel(); } };
+    // Clicking or tapping outside keeps what the sheet already shows (the live preview); only Cancel / Esc undo it.
+    const outside = () => applyRef.current();
     window.addEventListener('keydown', k, true);
     // Defer: the pointerdown that opened this menu is still bubbling to window.
-    const t = setTimeout(() => window.addEventListener('pointerdown', cancel));
-    return () => { clearTimeout(t); window.removeEventListener('keydown', k, true); window.removeEventListener('pointerdown', cancel); };
+    const t = setTimeout(() => window.addEventListener('pointerdown', outside));
+    return () => {
+      clearTimeout(t); window.removeEventListener('keydown', k, true); window.removeEventListener('pointerdown', outside);
+      // Replaced by another column's menu (or the sheet changed): keep this column's live filter as a proper,
+      // undoable step. Deferred so React's dev double-mount (StrictMode) doesn't count as closing.
+      mounted.current = false;
+      setTimeout(() => { if (!mounted.current && !closed.current) applyRef.current(); });
+    };
   }, []);
 
   const key = filterKey(q);
   const shown = (key ? values.filter((v) => filterKey(v).includes(key)) : values).slice(0, 1000);
   const apply = () => {
+    if (closed.current) return;
+    closed.current = true;
     const next = { contains: q.trim(), hidden: [...hidden] };
     restore(); // so the undo step captures the state before this filter
-    wb.structural(() => {
-      if (!sheet.filter) return;
-      sheet.filter.contains = { ...(sheet.filter.contains ?? {}), [col]: next.contains };
-      sheet.filter.hidden = { ...sheet.filter.hidden, [col]: next.hidden };
-    });
+    const changed = next.contains !== original.current.contains.trim() || next.hidden.length !== original.current.hidden.length || next.hidden.some((v) => !original.current.hidden.includes(v));
+    if (changed && sheet.filter && wb.sheets.includes(sheet)) {
+      wb.structural(() => {
+        if (!sheet.filter) return;
+        sheet.filter.contains = { ...(sheet.filter.contains ?? {}), [col]: next.contains };
+        sheet.filter.hidden = { ...sheet.filter.hidden, [col]: next.hidden };
+      });
+    }
     onClose();
   };
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
   const sort = (asc: boolean) => {
+    closed.current = true;
     restore();
     wb.sortRange(sheet, f.range, col, asc, true);
     onClose();

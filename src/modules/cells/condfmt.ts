@@ -69,7 +69,8 @@ export function evalRule(p: PreparedRule, value: unknown, text: string): CondSty
     case 'scale': {
       if (n == null || p.min == null || p.max == null) return null;
       const t = p.max === p.min ? 1 : (n - p.min) / (p.max - p.min);
-      return { ...rule.style, fill: lerpColor(rule.scale?.min ?? '#ffffff', rule.scale?.max ?? '#2fb98a', t) };
+      // A colour scale only fills (its editor has no text style; a style left over from another kind is ignored).
+      return { fill: lerpColor(rule.scale?.min ?? '#ffffff', rule.scale?.max ?? '#2fb98a', t) };
     }
   }
 }

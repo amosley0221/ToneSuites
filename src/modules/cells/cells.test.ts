@@ -243,3 +243,104 @@ describe('autofilter contains search', () => {
     expect(back.sheets[0].filter?.contains).toEqual({ 0: '755' });
   });
 });
+
+describe('CSV fidelity, undo groups and filtered copies (QA fixes)', () => {
+  it('keeps leading-zero IDs and long numbers as text, and saves an opened CSV back unchanged', async () => {
+    const { workbookFromDelimited, sheetToDelimited } = await import('./io');
+    const { delimitedInput } = await import('./csv');
+    expect(delimitedInput('001234')).toBe("'001234");
+    expect(delimitedInput('1234567890123456789')).toBe("'1234567890123456789");
+    expect(delimitedInput('0')).toBe('0');
+    expect(delimitedInput('0.5')).toBe('0.5');
+    const text = 'Worker ID,Name,Hire Date,Salary\r\n001001,Ann ,2020-07-10,"1,234"\r\n200000,Bob,07/14/2007,5000\r\n';
+    const wb = workbookFromDelimited(text, 'hr.csv');
+    expect(wb.display(wb.sheet, 1, 0).text).toBe('001001');
+    expect(wb.display(wb.sheet, 2, 0).kind).toBe('num');
+    expect(new TextDecoder().decode(sheetToDelimited(wb, wb.sheet, ','))).toBe(text);
+  });
+  it('orders slash dates by locale', async () => {
+    const { localeDateFormats } = await import('./model');
+    expect(localeDateFormats('en-US')).toContain('MM/DD/YYYY');
+    expect(localeDateFormats('en-US')).not.toContain('DD/MM/YYYY');
+    expect(localeDateFormats('en-GB')).toContain('DD/MM/YYYY');
+  });
+  it('keeps a formula calculating after its cell is formatted as Text', () => {
+    const wb = new Workbook();
+    wb.setInputs(wb.sheet, [{ r: 0, c: 0, v: '2' }, { r: 0, c: 1, v: '=A1*3' }]);
+    wb.formatRange(wb.sheet, { r0: 0, c0: 1, r1: 0, c1: 1 }, { nf: 'text' });
+    expect(wb.display(wb.sheet, 0, 1).text).toBe('6');
+  });
+  it('undoes a group of edits in one step', () => {
+    const wb = new Workbook();
+    wb.group(() => {
+      const ns = wb.addSheet('Pivot');
+      wb.writeGrid(ns, 0, 0, [['a', 1]]);
+      wb.structural(() => { ns.freeze = { rows: 1, cols: 0 }; });
+    });
+    expect(wb.sheets.length).toBe(2);
+    wb.undo();
+    expect(wb.sheets.length).toBe(1);
+    wb.redo();
+    expect(wb.sheets.length).toBe(2);
+    expect(wb.display(wb.sheets[1], 0, 0).text).toBe('a');
+    expect(wb.sheets[1].freeze.rows).toBe(1);
+  });
+  it('finds the whole current region of a long list', () => {
+    const wb = new Workbook();
+    wb.writeGrid(wb.sheet, 0, 0, Array.from({ length: 15000 }, (_, i) => [`r${i}`, i]));
+    expect(wb.currentRegion(wb.sheet, 0, 0)).toEqual({ r0: 0, c0: 0, r1: 14999, c1: 1 });
+  });
+  it('copies only visible rows of a filtered list and pastes them in one undo step', async () => {
+    const { copySelection, pasteText } = await import('./clipboard');
+    const wb = new Workbook();
+    const s = wb.sheet;
+    wb.writeGrid(s, 0, 0, [['Name', 'Dept', 'N'], ['Ann', 'HR', 1], ['Bob', 'IT', 2], ['Cy', 'HR', 3]]);
+    wb.setInputs(s, [1, 2, 3].map((r) => ({ r, c: 3, v: `=C${r + 1}*10` })));
+    s.filter = { range: { r0: 0, c0: 0, r1: 3, c1: 3 }, hidden: { 1: ['IT'] } };
+    s._hidden = undefined;
+    wb.select(0, 0, { r0: 0, c0: 0, r1: 3, c1: 3 });
+    const tsv = copySelection(wb, false);
+    expect(tsv.split('\n').map((l) => l.split('\t')[0])).toEqual(['Name', 'Ann', 'Cy']);
+    wb.select(10, 0);
+    pasteText(wb, tsv);
+    expect(wb.getCell(s, 12, 3)?.v).toBe('=C13*10');
+    expect(wb.display(s, 12, 3).text).toBe('30');
+    wb.undo();
+    expect(wb.getCell(s, 10, 0)).toBeUndefined();
+  });
+});
+
+describe('filtered lists: edits touch only visible rows', () => {
+  const setup = () => {
+    const wb = new Workbook();
+    const s = wb.sheet;
+    wb.writeGrid(s, 0, 0, [['Name', 'Dept'], ['Ann', 'HR'], ['Bob', 'IT'], ['Cy', 'HR'], ['Di', 'IT'], ['Ed', 'HR']]);
+    wb.setInputs(s, [{ r: 7, c: 0, v: '=COUNTA(A2:A6)' }]);
+    wb.structural(() => { s.filter = { range: { r0: 0, c0: 0, r1: 5, c1: 1 }, hidden: { 1: ['IT'] } }; });
+    return { wb, s };
+  };
+  it('deletes only visible rows, in one undo step', () => {
+    const { wb, s } = setup();
+    wb.deleteRowBlocks(s, [[1, 1], [3, 1], [5, 1]]);
+    expect([0, 1, 2].map((r) => wb.display(s, r, 0).text)).toEqual(['Name', 'Bob', 'Di']);
+    expect(wb.getCell(s, 4, 0)?.v).toBe('=COUNTA(A2:A3)');
+    expect(s.filter?.range).toEqual({ r0: 0, c0: 0, r1: 2, c1: 1 });
+    wb.undo();
+    expect([0, 1, 2, 3, 4, 5].map((r) => wb.display(s, r, 0).text)).toEqual(['Name', 'Ann', 'Bob', 'Cy', 'Di', 'Ed']);
+  });
+  it('clears and formats only visible rows', () => {
+    const { wb, s } = setup();
+    wb.formatRange(s, { r0: 1, c0: 0, r1: 5, c1: 0 }, { b: true });
+    expect(wb.getCell(s, 2, 0)?.f?.b).toBeUndefined();
+    expect(wb.getCell(s, 3, 0)?.f?.b).toBe(true);
+    wb.clear(s, { r0: 1, c0: 0, r1: 5, c1: 1 }, 'all');
+    expect(wb.display(s, 2, 0).text).toBe('Bob');
+    expect(wb.display(s, 1, 0).text).toBe('');
+  });
+  it('colour scales only fill (a leftover text colour is ignored)', () => {
+    const p = { rule: { id: 'x', range: 'A1:A3', kind: 'scale' as const, style: { color: '#e5484d' }, scale: { min: '#ffffff', max: '#000000' } }, range: { r0: 0, c0: 0, r1: 2, c1: 0 }, min: 0, max: 10 };
+    const st = evalRule(p, 5, '5');
+    expect(st?.color).toBeUndefined();
+    expect(st?.fill).toBeTruthy();
+  });
+});

@@ -110,6 +110,7 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
   const [, setScrollTick] = useState(0);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [filterMenu, setFilterMenu] = useState<{ col: number; x: number; y: number } | null>(null);
+  const filterColRef = useRef<number | null>(null);
   const [cursor, setCursor] = useState('cell');
   const s = wb.sheet;
   const edit = wb.ui.edit && wb.ui.edit.sheetId === s.id ? wb.ui.edit : null;
@@ -617,22 +618,36 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
   // ---------- pointer ----------
   const pointerTap = useRef<{ x: number; y: number; id: number } | null>(null);
 
+  const lastPointerType = useRef('mouse');
+  /** Is (x, y) on the AutoFilter dropdown button of a header cell? */
+  const onFilterButton = (hit: Hit, x: number) => {
+    if (hit.area !== 'cell' || !s.filter || hit.r !== s.filter.range.r0 || hit.c < s.filter.range.c0 || hit.c > s.filter.range.c1) return null;
+    const g = geoRef.current!;
+    const bx = X(g, hit.c) + g.cols.size(hit.c) - 18;
+    return x >= bx && x <= bx + 16 ? bx : null;
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     const sc = scrollerRef.current!;
     const { x, y } = localXY(e);
+    lastPointerType.current = e.pointerType;
     if (x > sc.clientWidth || y > sc.clientHeight) return; // scrollbars
     setMenu(null);
     const hit = hitTest(x, y);
     // Filter dropdown buttons
-    if (hit.area === 'cell' && s.filter && hit.r === s.filter.range.r0 && hit.c >= s.filter.range.c0 && hit.c <= s.filter.range.c1) {
+    const bx = onFilterButton(hit, x);
+    if (bx != null && hit.area === 'cell') {
+      e.preventDefault();
+      wb.commitEdit();
+      // Rows typed or pasted right below the list join the filter (as Excel does when you reopen it).
+      const f = s.filter!;
+      const below = wb.currentRegion(s, f.range.r0, f.range.c0).r1;
+      if (below > f.range.r1) { f.range = { ...f.range, r1: below }; wb.emit(true); }
       const g = geoRef.current!;
-      const bx = X(g, hit.c) + g.cols.size(hit.c) - 18;
-      if (x >= bx && x <= bx + 16) {
-        e.preventDefault();
-        const rect = sc.getBoundingClientRect();
-        setFilterMenu({ col: hit.c, x: rect.left + bx, y: rect.top + Y(g, hit.r) + g.rows.size(hit.r) });
-        return;
-      }
+      const rect = sc.getBoundingClientRect();
+      filterColRef.current = hit.c;
+      setFilterMenu({ col: hit.c, x: rect.left + bx, y: rect.top + Y(g, hit.r) + g.rows.size(hit.r) });
+      return;
     }
     if (e.pointerType === 'touch') { pointerTap.current = { x, y, id: e.pointerId }; return; }
     if (e.button === 2) {
@@ -825,8 +840,11 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
   const lastTap = useRef<{ t: number; r: number; c: number } | null>(null);
 
   const onDoubleClick = (e: React.MouseEvent) => {
+    // Touch double-taps are handled in endDrag; the browser's synthetic dblclick would start a second edit.
+    if (lastPointerType.current === 'touch' || filterMenu) return;
     const { x, y } = localXY(e);
     const hit = hitTest(x, y);
+    if (onFilterButton(hit, x) != null) return;
     if (hit.area === 'col' && hit.edge != null) {
       const c = hit.edge;
       const w = autofitWidth(wb, s, c);
@@ -1002,7 +1020,11 @@ export function Grid({ wb, onEditChart, compact }: { wb: Workbook; onEditChart: 
         <CellEditor wb={wb} box={editorBox} editCaret={editCaret} pendingCaret={pendingCaret} move={(dr, dc) => move(dr, dc, false, false)} compact={compact} />
       )}
       {menu && <ContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
-      {filterMenu && s.filter && <FilterMenu wb={wb} sheet={s} col={filterMenu.col} x={filterMenu.x} y={filterMenu.y} onClose={() => { setFilterMenu(null); wb.ui.focusGrid++; wb.emit(); }} />}
+      {filterMenu && s.filter && (
+        <FilterMenu key={`${s.id}:${filterMenu.col}`} wb={wb} sheet={s} col={filterMenu.col} x={filterMenu.x} y={filterMenu.y}
+          // A click on another column's button opens that menu while this one closes: leave the new one alone.
+          onClose={() => { if (filterColRef.current !== filterMenu.col) return; filterColRef.current = null; setFilterMenu(null); wb.ui.focusGrid++; wb.emit(); }} />
+      )}
     </div>
   );
 }
@@ -1082,8 +1104,13 @@ function CellEditor({ wb, box, editCaret, pendingCaret, move, compact }: {
         const text = edit.text;
         wb.ui.edit = null;
         const items: { r: number; c: number; v: string }[] = [];
+        // Whole rows/columns are limited to the used area; an ordinary selection is filled completely.
         const lim = wb.clampToUsed(s, g);
-        for (let r = g.r0; r <= Math.max(lim.r1, g.r0); r++) for (let c = g.c0; c <= Math.max(lim.c1, g.c0); c++) {
+        const r1 = g.r1 >= MAX_ROWS - 1 ? Math.max(lim.r1, g.r0) : g.r1;
+        const c1 = g.c1 >= MAX_COLS - 1 ? Math.max(lim.c1, g.c0) : g.c1;
+        const hidden = wb.hiddenRows(s);
+        for (let r = g.r0; r <= r1; r++) for (let c = g.c0; c <= c1; c++) {
+          if (hidden.has(r)) continue;
           items.push({ r, c, v: text.startsWith('=') ? shiftF(text, r - edit.r, c - edit.c) : text });
         }
         wb.setInputs(s, items);
@@ -1122,7 +1149,7 @@ function CellEditor({ wb, box, editCaret, pendingCaret, move, compact }: {
         style={{
           position: 'absolute', left: box.x - 1, top: box.y - 1, width: w, height: h, zIndex: 5, resize: 'none', overflow: 'hidden',
           padding: `${Math.max(4, (box.h - 16) / 2)}px 7px 0`, margin: 0, background: 'var(--bg0)', color: 'var(--ink)', outline: '2px solid var(--accent)',
-          outlineOffset: -2, border: 0, font: `500 ${12 * wb.ui.zoom}px ${edit.text.startsWith('=') ? 'var(--font-mono)' : 'var(--font-ui)'}`, lineHeight: '16px', whiteSpace: 'pre',
+          outlineOffset: -2, border: 0, font: `500 ${12 * wb.ui.zoom}px/16px ${edit.text.startsWith('=') ? 'var(--font-mono)' : 'var(--font-ui)'}`, whiteSpace: 'pre',
           boxShadow: 'var(--shadow-float)',
         }} />
       {focused && <AcDropdown wb={wb} assist={assist} onPick={(i) => accept(i)} style={{ left: box.x - 1, top: box.y + h + 2 }} />}

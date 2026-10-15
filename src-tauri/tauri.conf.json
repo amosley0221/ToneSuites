@@ -50,7 +50,18 @@
     },
     "android": {
       "minSdkVersion": 29
-    }
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "tone"
+        ],
+        "name": "Tone document",
+        "description": "Tone Suites document",
+        "role": "Editor",
+        "mimeType": "application/x-tone"
+      }
+    ]
   },
   "plugins": {
     "updater": {

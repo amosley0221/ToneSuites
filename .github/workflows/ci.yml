@@ -47,3 +47,4 @@ jobs:
           workspaces: src-tauri -> target
       - run: mkdir -p dist && echo '<html></html>' > dist/index.html
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --lib --manifest-path src-tauri/Cargo.toml

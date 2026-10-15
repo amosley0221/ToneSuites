@@ -6,6 +6,12 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+### Fixed
+- Windows and macOS: "Open with → Tone Suites" (and double-clicking a file) now opens the file. If Tone is already running, the file opens as a new tab in the existing window instead of starting a second copy.
+
+### Improved
+- Tone documents (.tone) open in Tone Suites when you double-click them.
+
 ## [0.1.2] - 2026-10-14
 
 ### Improved

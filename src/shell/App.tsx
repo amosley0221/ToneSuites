@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { coreHandlers, keyEvent, registerGlobal, runCommand, shortcutMap } from '@/core/commands';
-import { openRecent } from '@/core/documents';
+import { openPath, openRecent } from '@/core/documents';
 import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp } from '@/core/store';
@@ -48,6 +48,18 @@ registerGlobal(coreHandlers({
 }));
 registerGlobal({ 'app.settings.sync': () => push((close) => <SettingsDialog close={close} initial="Sync" />) });
 
+/** Files the OS asked us to open ("Open with", double-click, a second launch). */
+async function listenForOpenedFiles() {
+  if (!isTauri) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  const { listen } = await import('@tauri-apps/api/event');
+  const drain = async () => {
+    for (const path of await invoke<string[]>('take_open_files')) await openPath(path);
+  };
+  await listen('open-files', () => void drain());
+  await drain();
+}
+
 function useCompact() {
   const [compact, setCompact] = useState(() => window.innerWidth < 900);
   useEffect(() => {
@@ -78,6 +90,7 @@ export function App() {
       const v = await appVersion();
       if (s.lastSeenVersion && s.lastSeenVersion !== v) push((close) => <WhatsNew close={close} version={v} />);
       if (s.lastSeenVersion !== v) update({ lastSeenVersion: v });
+      void listenForOpenedFiles();
       startSyncLoop();
       void checkUpdates(false);
       setInterval(() => void checkUpdates(false), UPDATE_CHECK_HOURS * 3600 * 1000);

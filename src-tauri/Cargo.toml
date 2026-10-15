@@ -1,6 +1,6 @@
 [package]
 name = "tone-suites"
-version = "0.1.7"
+version = "0.1.8"
 description = "Tone Suites"
 edition = "2021"
 rust-version = "1.77"

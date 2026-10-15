@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-10-15
+
 ### Improved
 - Mac: Tone now looks like a native Mac app — rounded window corners and the red/yellow/green window buttons at the top left (the Windows-style buttons on the right are gone on Mac). Windows keeps its own buttons.
 

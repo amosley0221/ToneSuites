@@ -33,6 +33,7 @@ export function StatusBar() {
     else if (states.includes('error')) { syncLabel = 'Sync error'; dot = 'var(--negative)'; }
     else if (states.includes('offline')) { syncLabel = `Offline · ${sync.pending} queued`; dot = 'var(--accent)'; }
     else if (sync.pending) { syncLabel = `${sync.pending} pending`; dot = 'var(--accent)'; }
+    else if (states.every((x) => x === 'unknown')) { syncLabel = 'Not synced yet'; dot = 'var(--mute)'; }
     else { syncLabel = 'Synced'; dot = 'var(--positive)'; }
   }
 

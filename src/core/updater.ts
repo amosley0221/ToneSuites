@@ -110,3 +110,16 @@ export async function runUpdateCheck(manual: boolean): Promise<AvailableUpdate |
     return null;
   }
 }
+
+/**
+ * What to do with a found update: install silently (only at launch, "Install on next launch" mode, no unsaved
+ * work), show the popup (manual check, or the first time we see this version), or just keep the title-bar badge.
+ */
+export function updateAction(
+  u: Pick<AvailableUpdate, 'version' | 'kind'>,
+  s: { updateMode: 'prompt' | 'silent'; updatePromptedVersion: string },
+  ctx: { manual: boolean; atLaunch: boolean; hasUnsaved: boolean },
+): 'install' | 'popup' | 'badge' {
+  if (s.updateMode === 'silent' && u.kind === 'desktop' && !ctx.manual) return ctx.atLaunch && !ctx.hasUnsaved ? 'install' : 'badge';
+  return ctx.manual || s.updatePromptedVersion !== u.version ? 'popup' : 'badge';
+}

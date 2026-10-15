@@ -51,4 +51,17 @@ a:hover { color: var(--ink); }
 .compact .menurow { overflow-x: auto; }
 .compact .docmeta { display: none !important; }
 
+/* Dialogs with side-by-side panes on a phone: nav becomes a scrolling strip on top, panes stack. */
+@media (max-width: 600px) {
+  .dialog-body.stack { flex-direction: column; overflow-y: auto !important; }
+  .dialog-body.stack > * { width: auto !important; flex-shrink: 0 !important; border-right: 0 !important; overflow: visible !important; }
+  .dialog-body.stack > .dialog-nav { display: flex; overflow-x: auto !important; padding: 0 !important; border-bottom: 1px solid var(--line); }
+  .dialog-body.stack > .dialog-nav > div { white-space: nowrap; flex-shrink: 0; }
+  .dialog-body.stack > :not(.dialog-nav) { flex-wrap: wrap; }
+  .dialog-body.stack input:not([type=checkbox]), .dialog-body.stack select { max-width: 52vw !important; }
+  .dialog-body.stack .convert-preview { display: none !important; }
+  .dialog-body.stack .provider-row { grid-template-columns: 1fr auto !important; }
+  .dialog-body.stack .provider-row > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+}
+
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }

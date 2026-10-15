@@ -53,6 +53,9 @@ export function CommandPalette() {
     return rows.filter((r) => { const hay = `${r.label} ${r.detail ?? ''}`.toLowerCase(); return words.every((w) => hay.includes(w)); }).slice(0, 80);
   }, [q, rows]);
   useEffect(() => setSel(0), [q]);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Keep the keyboard selection visible while arrowing through a long list.
+  useEffect(() => { (listRef.current?.children[sel] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' }); }, [sel]);
 
   const key = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(filtered.length - 1, s + 1)); }
@@ -67,7 +70,7 @@ export function CommandPalette() {
         style={{ position: 'absolute', top: 'calc(120px + var(--safe-top))', left: '50%', transform: 'translateX(-50%)', width: 620, maxWidth: 'calc(100vw - 16px)', background: 'var(--bg1)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-modal)' }}>
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={key} placeholder="Type a command or file name…"
           style={{ width: '100%', padding: '14px 16px', background: 'transparent', border: 0, borderBottom: '1px solid var(--line)', outline: 'none', font: '600 16px var(--font-ui)', color: 'var(--ink)' }} />
-        <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+        <div ref={listRef} style={{ maxHeight: 420, overflowY: 'auto' }}>
           {filtered.map((r, i) => (
             <div key={i} onClick={() => { r.run(); close(); }} onMouseEnter={() => setSel(i)}
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', cursor: 'pointer', background: i === sel ? 'var(--sel)' : 'transparent', boxShadow: i === sel ? 'inset 2px 0 0 var(--accent)' : 'none' }}>

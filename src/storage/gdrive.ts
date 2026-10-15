@@ -68,6 +68,7 @@ interface DriveFile { id: string; name: string; mimeType: string; size?: string;
 
 export class GDriveProvider implements StorageProvider {
   private ids = new Map<string, string>(); // rel -> file id ('' -> root)
+  private native = new Map<string, string>(); // rel -> Google-native mimeType (exported on download)
   /** @param rootName folder in My Drive used as root; null = whole My Drive (browsing) */
   constructor(public config: ProviderConfig, private rootName: string | null) {}
 
@@ -89,9 +90,14 @@ export class GDriveProvider implements StorageProvider {
   }
 
   private async api(path: string, init: RequestInit = {}, base = API): Promise<Response> {
-    const t = await this.token();
-    const r = await httpFetch(base + path, { ...init, headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${t}` } });
-    if (r.status === 401) throw new Error('Google Drive session expired — reconnect in Settings › Sync');
+    const send = async () => httpFetch(base + path, { ...init, headers: { ...(init.headers as Record<string, string>), Authorization: `Bearer ${await this.token()}` } });
+    let r = await send();
+    if (r.status === 401) {
+      // The access token can be revoked or expire early (clock skew, password change): refresh once and retry.
+      useSettings.getState().setSecret(this.config.id, { accessToken: undefined, expiresAt: 0 });
+      r = await send();
+      if (r.status === 401) throw new Error('Google Drive session expired — reconnect in Settings › Sync');
+    }
     return r;
   }
 
@@ -144,9 +150,19 @@ export class GDriveProvider implements StorageProvider {
       if (!nid) {
         const isLast = i === parts.length - 1;
         const found = await this.query(`name='${this.esc(parts[i])}' and '${id}' in parents and trashed=false`);
-        nid = found[0]?.id;
+        nid = (isLast ? found[0] : found.find((f) => f.mimeType === FOLDER) ?? found[0])?.id;
+        if (!nid && isLast) {
+          // Google Docs/Sheets/Slides/Drawings are listed as "Name.docx" etc. but stored as "Name".
+          const native = Object.entries(EXPORTS).find(([, e]) => parts[i].toLowerCase().endsWith('.' + e.ext));
+          if (native) {
+            const bare = parts[i].slice(0, -(native[1].ext.length + 1));
+            const f = (await this.query(`name='${this.esc(bare)}' and mimeType='${native[0]}' and '${id}' in parents and trashed=false`))[0];
+            if (f) { nid = f.id; this.native.set(next, f.mimeType); }
+          }
+        }
         if (!nid) {
-          if (!create || isLast) return null;
+          // `create` is only used for folder paths (the parent of an upload), so every missing segment is a folder.
+          if (!create) return null;
           nid = await this.mkdir(parts[i], id);
         }
         this.ids.set(next, nid);
@@ -162,6 +178,7 @@ export class GDriveProvider implements StorageProvider {
     const name = exp && !f.name.toLowerCase().endsWith('.' + exp.ext) ? `${f.name}.${exp.ext}` : f.name;
     const rel = joinRel(parentRel, name);
     this.ids.set(rel, f.id);
+    if (exp) this.native.set(rel, f.mimeType);
     return { rel, id: f.id, isDir: f.mimeType === FOLDER, size: Number(f.size ?? 0), mtime: Date.parse(f.modifiedTime), rev: f.md5Checksum ?? f.modifiedTime };
   }
 
@@ -210,7 +227,10 @@ export class GDriveProvider implements StorageProvider {
     const existing = await this.idFor(rel);
     const boundary = 'tone' + Math.random().toString(36).slice(2);
     const meta = existing ? {} : { name, parents: [parent] };
-    const head = new TextEncoder().encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n`);
+    // Saving back into a Google Doc/Sheet: send the Office bytes with their real type so Drive converts them.
+    const nativeMime = existing ? this.native.get(rel) : undefined;
+    const mediaType = nativeMime ? EXPORTS[nativeMime].mime : 'application/octet-stream';
+    const head = new TextEncoder().encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mediaType}\r\n\r\n`);
     const tail = new TextEncoder().encode(`\r\n--${boundary}--`);
     const body = new Uint8Array(head.length + bytes.length + tail.length);
     body.set(head, 0); body.set(bytes, head.length); body.set(tail, head.length + bytes.length);
@@ -226,7 +246,8 @@ export class GDriveProvider implements StorageProvider {
     const id = await this.idFor(rel);
     if (!id) return;
     // Move to trash rather than hard delete, so mistakes are recoverable.
-    await this.api(`/files/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+    const r = await this.api(`/files/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+    if (!r.ok && r.status !== 404) throw new Error(`Drive delete failed (${r.status})`);
     this.ids.delete(joinRel(rel));
   }
 

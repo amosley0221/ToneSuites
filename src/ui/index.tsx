@@ -94,9 +94,9 @@ export function Select<T extends string>({ value, options, onChange, width = 160
   );
 }
 
-export function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode }) {
+export function Checkbox({ checked, onChange, label, disabled }: { checked: boolean; onChange: (v: boolean) => void; label?: ReactNode; disabled?: boolean }) {
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', font: 'var(--type-small)' }} onClick={(e) => { e.preventDefault(); onChange(!checked); }}>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: disabled ? 'default' : 'pointer', font: 'var(--type-small)', opacity: disabled ? 0.45 : 1 }} onClick={(e) => { e.preventDefault(); if (!disabled) onChange(!checked); }}>
       <span style={{ width: 14, height: 14, border: `1px solid ${checked ? 'var(--accent)' : 'var(--line)'}`, background: checked ? 'var(--accent)' : 'transparent', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--on-accent)', fontSize: 10, fontWeight: 900 }}>{checked ? '✓' : ''}</span>
       {label}
     </label>
@@ -178,8 +178,10 @@ export function ToolButton({ label, shortcut, active, onClick, hasFlyout, title 
   );
 }
 
-export function Dialog({ title, subtitle, width = 720, height = 480, onClose, children, footer }: {
+export function Dialog({ title, subtitle, width = 720, height = 480, onClose, children, footer, stackOnPhone }: {
   title: ReactNode; subtitle?: ReactNode; width?: number | string; height?: number | string; onClose: () => void; children: ReactNode; footer?: ReactNode;
+  /** On phone widths, put side-by-side panes (nav list | content) on top of each other and scroll them together. */
+  stackOnPhone?: boolean;
 }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
@@ -197,7 +199,7 @@ export function Dialog({ title, subtitle, width = 720, height = 480, onClose, ch
           <span style={{ flex: 1 }} />
           <button type="button" onClick={onClose} className="hov-ink" style={{ border: 0, background: 'transparent', color: 'var(--mute)', cursor: 'pointer', padding: '4px 8px' }}>✕</button>
         </div>
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>{children}</div>
+        <div className={stackOnPhone ? 'dialog-body stack' : 'dialog-body'} style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>{children}</div>
         {footer && <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 18px', borderTop: '1px solid var(--line)', flexShrink: 0 }}>{footer}</div>}
       </div>
     </div>
@@ -209,7 +211,7 @@ export function DialogNav<T extends string>({ items, value, onChange, width = 22
   items: readonly (T | { value: T; label: ReactNode; hint?: ReactNode })[]; value: T; onChange: (v: T) => void; width?: number;
 }) {
   return (
-    <div style={{ width, borderRight: '1px solid var(--line)', padding: '10px 0', overflowY: 'auto', flexShrink: 0 }}>
+    <div className="dialog-nav" style={{ width, borderRight: '1px solid var(--line)', padding: '10px 0', overflowY: 'auto', flexShrink: 0 }}>
       {items.map((it) => {
         const v = typeof it === 'string' ? it : it.value;
         const label = typeof it === 'string' ? it : it.label;

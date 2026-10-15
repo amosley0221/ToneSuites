@@ -124,6 +124,13 @@ export async function mkdirp(path: string): Promise<void> {
   await fs.mkdir(path, { recursive: true }).catch(() => {});
 }
 
+/** Size and modification time (ms) of one file — same values listFilesRecursive reports. */
+export async function statFile(path: string): Promise<{ size: number; mtime: number }> {
+  const fs = await import('@tauri-apps/plugin-fs');
+  const st = await fs.stat(path);
+  return { size: st.size, mtime: st.mtime ? new Date(st.mtime).getTime() : 0 };
+}
+
 export interface LocalEntry { path: string; rel: string; size: number; mtime: number }
 
 /** Recursively list files under `root`. Skips dot-folders except those in `keepDot`. */
@@ -170,7 +177,7 @@ export async function pickOpenPaths(exts: string[], multiple = false, directory 
 export async function pickSavePath(defaultName: string, exts: string[], defaultDir?: string): Promise<string | null> {
   const { save } = await import('@tauri-apps/plugin-dialog');
   const defaultPath = defaultDir ? await joinPath(defaultDir, defaultName) : defaultName;
-  return save({ defaultPath, filters: exts.length ? [{ name: exts[0].toUpperCase(), extensions: exts }] : undefined });
+  return save({ defaultPath, filters: exts.length ? exts.map((e) => ({ name: e === 'tone' ? 'Tone document' : e.toUpperCase(), extensions: [e] })) : undefined });
 }
 
 /** Browser fallback: pick files via <input type=file>. */

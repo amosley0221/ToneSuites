@@ -5,7 +5,7 @@ import { appVersion, isTauri } from '@/core/platform';
 import { applyTheme, useSettings } from '@/core/settings';
 import { activeDoc, useApp } from '@/core/store';
 import { setSystemBarTheme, startInsets } from '@/core/insets';
-import { runUpdateCheck, useUpdates } from '@/core/updater';
+import { runUpdateCheck, updateAction, useUpdates } from '@/core/updater';
 import { UPDATE_CHECK_HOURS } from '@/config';
 import { startSyncLoop } from '@/storage/sync';
 import { CommandPalette } from './CommandPalette';
@@ -25,14 +25,14 @@ function showUpdate() {
   if (u) push((close) => <UpdateDialog update={u} close={close} />);
 }
 
-async function checkUpdates(manual: boolean) {
+async function checkUpdates(manual: boolean, atLaunch = false) {
   try {
     const u = await runUpdateCheck(manual);
     const { s, update } = useSettings.getState();
     if (u) {
-      if (s.updateMode === 'silent' && u.kind === 'desktop' && !manual) { await u.install(); return; }
-      // Pop up once per new version (or whenever asked); afterwards the title-bar badge reminds.
-      if (manual || s.updatePromptedVersion !== u.version) {
+      const action = updateAction(u, s, { manual, atLaunch, hasUnsaved: useApp.getState().docs.some((d) => d.dirty) });
+      if (action === 'install') { await u.install(); return; }
+      if (action === 'popup') {
         update({ updatePromptedVersion: u.version });
         showUpdate();
       }
@@ -105,7 +105,7 @@ export function App() {
       if (s.lastSeenVersion !== v) update({ lastSeenVersion: v });
       void listenForOpenedFiles();
       startSyncLoop();
-      void checkUpdates(false);
+      void checkUpdates(false, true);
       setInterval(() => void checkUpdates(false), UPDATE_CHECK_HOURS * 3600 * 1000);
     })();
   }, []);

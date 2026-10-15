@@ -2,13 +2,13 @@
 // The local workspace folder is the source of truth for this device; each enabled provider holds a mirror.
 // A per-provider index remembers, for every file, the local content hash and the remote revision at the
 // last successful sync — so we can tell "changed here", "changed there" and "changed on both" (conflict).
-import { appDataDir, isTauri, joinPath, listFilesRecursive, readFile, readText, removePath, sha256Hex, writeFile, writeText, appVersion } from '@/core/platform';
+import { appDataDir, isTauri, joinPath, listFilesRecursive, readFile, readText, removePath, sha256Hex, statFile, writeFile, writeText, appVersion } from '@/core/platform';
 import { useSettings, type ProviderConfig } from '@/core/settings';
 import { useApp, type RemoteDevice, type SyncConflict } from '@/core/store';
 import { GDriveProvider } from './gdrive';
 import type { StorageProvider } from './provider';
 import { conflictCopyName, planFile } from './syncPlan';
-import { WebDavProvider } from './webdav';
+import { normEtag, WebDavProvider } from './webdav';
 
 const META_DIR = '.tone-sync';
 
@@ -40,21 +40,25 @@ export const syncHooks = {
 };
 
 let running = false;
-let timer: ReturnType<typeof setTimeout> | undefined;
+let again = false;
+let loopTimer: ReturnType<typeof setTimeout> | undefined;
+let soonTimer: ReturnType<typeof setTimeout> | undefined;
 const pendingResolutions = new Map<string, 'local' | 'remote' | 'both'>();
 
+/** Sync soon (after a save, a settings change, a conflict choice). Doesn't disturb the periodic loop. */
 export function requestSync(delayMs = 2500) {
-  clearTimeout(timer);
-  timer = setTimeout(() => void syncAll(), delayMs);
+  clearTimeout(soonTimer);
+  soonTimer = setTimeout(() => { if (running) again = true; else void syncAll(); }, delayMs);
 }
 
 export function startSyncLoop() {
   const tick = async () => {
-    await syncAll();
+    await syncAll().catch((e) => console.warn('sync', e));
     const sec = Math.max(15, useSettings.getState().s.syncIntervalSeconds || 60);
-    timer = setTimeout(tick, sec * 1000);
+    loopTimer = setTimeout(tick, sec * 1000);
   };
-  timer = setTimeout(tick, 1500);
+  clearTimeout(loopTimer);
+  loopTimer = setTimeout(tick, 1500);
 }
 
 export async function syncAll(): Promise<void> {
@@ -83,7 +87,7 @@ export async function syncAll(): Promise<void> {
       const usage = await p.usage().catch(() => null);
       app.setProviderState(cfg.id, { status: 'online', message: undefined, usage: usage ?? undefined, files: res.files, lastSync: Date.now() });
     } catch (e: any) {
-      const offline = /network|connect|timed out|dns|unreachable|error sending request/i.test(String(e?.message ?? e));
+      const offline = /network|connect|refused|timed out|timeout|dns|unreachable|error sending request|fetch failed|failed to fetch|load failed/i.test(String(e?.message ?? e));
       app.setProviderState(cfg.id, { status: offline ? 'offline' : 'error', message: String(e?.message ?? e) });
       pending += 1;
     }
@@ -91,6 +95,8 @@ export async function syncAll(): Promise<void> {
   devices.delete(s.deviceId);
   useApp.getState().setSync({ running: false, pending, conflicts, lastSync: Date.now(), devices: [...devices.values()].sort((a, b) => b.lastActive - a.lastActive) });
   running = false;
+  // A save or conflict choice arrived while we were busy: run once more.
+  if (again) { again = false; requestSync(100); }
 }
 
 async function syncProvider(p: StorageProvider, root: string): Promise<{ pending: number; conflicts: SyncConflict[]; files: number }> {
@@ -119,10 +125,15 @@ async function syncProvider(p: StorageProvider, root: string): Promise<{ pending
   const download = async (rel: string) => {
     const bytes = await p.get(rel);
     const abs = await joinPath(root, ...rel.split('/'));
-    await writeFile(abs, bytes);
-    const st = (await listFilesRecursive(root)).find((e) => e.rel === rel);
-    idx.files[rel] = { hash: await sha256Hex(bytes), rev: remoteMap.get(rel)!.rev, size: st?.size ?? bytes.length, mtime: st?.mtime ?? 0 };
-    syncHooks.onLocalReplaced(abs);
+    const hash = await sha256Hex(bytes);
+    const l = localMap.get(rel);
+    // Same bytes already here (e.g. only the remote revision marker changed): don't rewrite the file
+    // or reload the open tab.
+    const same = !!l && (await localHash(rel).catch(() => '')) === hash;
+    if (!same) await writeFile(abs, bytes);
+    const st = same ? { size: l!.size, mtime: l!.mtime } : await statFile(abs).catch(() => null);
+    idx.files[rel] = { hash, rev: remoteMap.get(rel)!.rev, size: st?.size ?? bytes.length, mtime: st?.mtime ?? 0 };
+    if (!same) syncHooks.onLocalReplaced(abs);
   };
   const upload = async (rel: string) => {
     const l = localMap.get(rel)!;
@@ -158,7 +169,8 @@ async function syncProvider(p: StorageProvider, root: string): Promise<{ pending
     const known = idx.files[rel];
     try {
       if (l && syncHooks.isDirty(l.path)) { pending++; continue; } // wait until the open document is saved
-      const action = planFile(l && { hash: await localHash(rel) }, r && { rev: r.rev }, known);
+      // Older indexes may hold a quoted / weak ETag; compare revisions bare.
+      const action = planFile(l && { hash: await localHash(rel) }, r && { rev: normEtag(r.rev) }, known && { hash: known.hash, rev: normEtag(known.rev) });
       switch (action) {
         case 'none': break;
         case 'upload': await upload(rel); break;

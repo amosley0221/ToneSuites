@@ -75,6 +75,8 @@ export async function openBytes(bytes: Uint8Array, filename: string, location: D
   const { mode, model, title, format } = await decode(bytes, filename);
   const id = openModel(mode, model, title, location, format, undefined, folderWorkspace);
   if (location) addRecent({ title, mode, format, location });
+  // A file just opened has no unsaved changes, even when the browser build can't remember its path.
+  else useApp.getState().updateDoc(id, { dirty: false });
   return id;
 }
 
@@ -152,7 +154,10 @@ export async function switchFolderFile(docId: string, index: number) {
     const bytes = await readFile(path);
     const { mode, model, format } = await decode(bytes, ws.files[i]);
     models.set(docId, model);
+    // A folder can mix file types: drop command handlers bound to the previous module.
+    if (mode !== doc.mode) (await import('./commands')).forgetDoc(docId);
     useApp.getState().updateDoc(docId, { mode, title: ws.files[i], format, location: { kind: 'local', path }, dirty: false, rev: doc.rev + 1, folderWorkspace: { ...ws, index: i } });
+    addRecent({ title: ws.files[i], mode, format, location: { kind: 'local', path } });
   } catch (e: any) { toast(`Couldn't open ${ws.files[i]}: ${e?.message ?? e}`, 'error'); }
 }
 
@@ -210,8 +215,11 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
         if (!opts.copy) useApp.getState().updateDoc(docId, { dirty: false, savedAt: Date.now(), title: name, format });
         return true;
       }
-      const path = await pickSavePath(name, [format], useSettings.getState().s.workspaceDir || undefined);
+      // Save as / copy can also keep a foreign file (xlsx, pdf…) as a .tone document: the chosen extension decides.
+      const exts = opts.saveAs || opts.copy ? [...new Set([format, 'tone'])] : [format];
+      const path = await pickSavePath(name, exts, useSettings.getState().s.workspaceDir || undefined);
       if (!path) return false;
+      if (extOf(path) === 'tone') format = 'tone';
       location = { kind: 'local', path };
     }
     const bytes = await encode(doc, format);
@@ -236,10 +244,20 @@ export async function saveDocument(docId: string, opts: { saveAs?: boolean; copy
   }
 }
 
+/** Bytes of a document's file as last saved (local file, NAS or Drive). */
+async function readLocation(loc: DocLocation): Promise<Uint8Array> {
+  if (loc.kind === 'local') return readFile(loc.path);
+  const cfg = useSettings.getState().s.providers.find((p) => p.id === loc.providerId);
+  if (!cfg) throw new Error('Storage provider was removed');
+  const rootRel = fromRoot(loc.path);
+  return makeProvider(cfg, rootRel != null).get(rootRel ?? loc.path);
+}
+
 export async function revertDocument(docId: string) {
   const doc = useApp.getState().docs.find((d) => d.id === docId);
-  if (!doc?.location || doc.location.kind !== 'local') return;
-  const bytes = await readFile(doc.location.path);
+  if (!doc) return;
+  if (!doc.location) { toast('Nothing to revert to — this document has not been saved yet'); return; }
+  const bytes = await readLocation(doc.location);
   const { model } = await decode(bytes, doc.title);
   models.set(docId, model);
   useApp.getState().updateDoc(docId, { dirty: false, rev: doc.rev + 1 });
@@ -256,6 +274,7 @@ export async function closeDocument(docId: string) {
   clearTimeout(autosaveTimers.get(docId));
   models.delete(docId);
   useApp.getState().removeDoc(docId);
+  void import('./commands').then((c) => c.forgetDoc(docId));
 }
 
 function askSaveBeforeClose(title: string): Promise<'save' | 'discard' | 'cancel'> {
@@ -297,7 +316,7 @@ export async function alsoSaveToDrive(bytes: Uint8Array, filename: string) {
 syncHooks.isDirty = (abs) => useApp.getState().docs.some((d) => d.dirty && d.location?.kind === 'local' && d.location.path === abs);
 syncHooks.onLocalReplaced = (abs) => {
   const doc = useApp.getState().docs.find((d) => d.location?.kind === 'local' && d.location.path === abs);
-  if (doc && !doc.dirty) void revertDocument(doc.id).then(() => toast(`${doc.title} updated from another device`));
+  if (doc && !doc.dirty) void revertDocument(doc.id).then(() => toast(`${doc.title} updated from another device`), (e) => console.warn('reload after sync', e));
 };
 syncHooks.openDocs = () => {
   const ws = useSettings.getState().s.workspaceDir;

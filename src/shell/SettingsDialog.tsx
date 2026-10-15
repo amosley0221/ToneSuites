@@ -20,7 +20,7 @@ export function SettingsDialog({ close, initial }: { close: () => void; initial?
   const [tab, setTab] = useState<Tab>((TABS as readonly string[]).includes(initial ?? '') ? (initial as Tab) : 'General');
   const hasUpdate = useUpdates((u) => !!u.available);
   return (
-    <Dialog title="Settings" subtitle={`Tone Suites ${__APP_VERSION__}`} width={860} height={580} onClose={close}>
+    <Dialog title="Settings" subtitle={`Tone Suites ${__APP_VERSION__}`} width={860} height={580} onClose={close} stackOnPhone>
       <DialogNav items={TABS.map((t) => ({ value: t, label: t, hint: t === 'Updates' && hasUpdate ? <span style={{ color: 'var(--accent)' }}>NEW</span> : undefined }))} value={tab} onChange={setTab} />
       <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
         {tab === 'General' && <General />}
@@ -74,7 +74,7 @@ function Updates() {
         </div>
       ) : (
         <div style={{ border: '1px solid var(--line)', padding: 14, marginBottom: 14, background: 'var(--bg0)' }}>
-          <div style={{ fontWeight: 800 }}>{checking ? 'Checking for updates…' : error ? 'Couldn\'t check for updates' : lastChecked ? 'You\'re up to date' : 'Not checked yet'}</div>
+          <div style={{ fontWeight: 800 }}>{checking ? 'Checking for updates…' : error ? 'Couldn\'t check for updates' : !isTauri ? 'Updates are delivered to the installed app' : lastChecked ? 'You\'re up to date' : 'Not checked yet'}</div>
           <div style={{ font: 'var(--type-small)', color: error ? 'var(--negative)' : 'var(--mute)', marginTop: 4 }}>
             {error ?? `Tone Suites ${__APP_VERSION__}`}
           </div>
@@ -167,7 +167,11 @@ function Sync() {
   const states = useApp((a) => a.sync.providers);
   const [adding, setAdding] = useState<'webdav' | 'gdrive' | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const remove = (id: string) => update({ providers: s.providers.filter((p) => p.id !== id) });
+  const remove = (id: string) => {
+    update({ providers: useSettings.getState().s.providers.filter((p) => p.id !== id) });
+    useSettings.getState().dropSecret(id);
+    useApp.getState().setSync({ providers: Object.fromEntries(Object.entries(useApp.getState().sync.providers).filter(([k]) => k !== id)) });
+  };
   return (
     <div>
       <Eyebrow>Storage providers</Eyebrow>
@@ -217,7 +221,7 @@ function Sync() {
 
 function ProviderRow({ name, detail, meta, status }: { name: string; detail: string; meta: string; status: React.ReactNode }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: '1px solid var(--line)', marginBottom: 8, background: 'var(--bg0)' }}>
+    <div className="provider-row" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr auto', alignItems: 'center', gap: 12, padding: '10px 12px', border: '1px solid var(--line)', marginBottom: 8, background: 'var(--bg0)' }}>
       <div><div style={{ fontWeight: 800 }}>{name}</div><div style={{ font: 'var(--type-small)', color: 'var(--mute)' }}>{detail}</div></div>
       <span style={{ font: 'var(--type-mono)', color: 'var(--mute)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta}</span>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{status}</div>
@@ -226,8 +230,9 @@ function ProviderRow({ name, detail, meta, status }: { name: string; detail: str
 }
 
 function useSaveProvider() {
-  const { s, update } = useSettings();
   return (cfg: ProviderConfig) => {
+    // Read the latest list: Google sign-in can take minutes, during which other providers may change.
+    const { s, update } = useSettings.getState();
     const exists = s.providers.some((p) => p.id === cfg.id);
     update({ providers: exists ? s.providers.map((p) => (p.id === cfg.id ? cfg : p)) : [...s.providers, cfg] });
     requestSync(500);

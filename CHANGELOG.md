@@ -7,7 +7,22 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Sync: documents you saved no longer reload by themselves a minute later with "updated from another device" (the NAS reported the same version in two spellings).
+- Sync: the regular background sync no longer stops after you save a file, so changes from your other devices keep arriving.
+- Sync: a new NAS sync folder is created automatically on the first sync, instead of every upload failing until you pressed Test connection.
+- Google Drive: files in new subfolders now upload (they failed with "Drive folder could not be created"), Google Docs/Sheets can be opened from Drive and recents, and an expired sign-in is renewed automatically.
+- "Install on next launch" updates now really wait for the next launch instead of restarting Tone in the middle of your work.
+- Revert (F12) now works for files opened from your NAS or Google Drive, and explains when a document has never been saved.
+- Folder workspaces with mixed file types: after switching to a different kind of file, menu commands act on that file (they could still target the previous editor). Switched files now also appear in Recent.
 - Cells: the column filter now filters the sheet as you type, shows how many rows match (or "No matches"), and finds values regardless of capitals, spaces or thousands separators (75568 finds 75,568). Cancel puts the previous filter back; OK keeps it, and it's saved with the file.
+
+### Improved
+- Settings, Convert & export and Open from storage fit on a phone screen (Galaxy Fold folded): the sections stack and scroll.
+- Save as can save an Excel, Word or PDF file as a Tone document (.tone).
+- The status bar says "Not synced yet" until the first sync instead of claiming "Synced"; "Sync error"/"Offline" detection is more reliable.
+- Removing a storage provider also forgets its password on this device.
+- Convert & export: a problem saving the extra Google Drive copy no longer cancels the conversion; the Drive option is greyed out until Drive is connected.
+- Command palette: the highlighted row stays visible while you arrow through a long list.
 
 ## [0.1.4] - 2026-10-15
 

@@ -29,11 +29,13 @@ export function ConvertDialog({ doc, close }: { doc: Doc; close: () => void }) {
     try {
       const res = await fmt.run(models.get(doc.id), opts, base);
       const { bytes, filename } = res;
-      if (drive) await alsoSaveToDrive(bytes, filename);
       const openIn = res.kind === 'doc' ? res.mode : fmt.opensIn;
       if (openIn && openTab) await openConverted(bytes, filename, doc.id, openIn);
-      else await saveBytesAs(bytes, filename, [fmt.ext]);
+      else if (!(await saveBytesAs(bytes, filename, [fmt.ext])) && !drive) { setBusy(false); return; } // save dialog cancelled
       close();
+      // The Drive copy is extra: a network problem there must not undo the conversion itself.
+      if (drive) await alsoSaveToDrive(bytes, filename).catch((e) => useApp.getState().toast(`Couldn't save a copy to Google Drive: ${e?.message ?? e}`, 'error'));
+      return;
     } catch (e: any) {
       useApp.getState().toast(`Convert failed: ${e?.message ?? e}`, 'error');
     }
@@ -41,7 +43,7 @@ export function ConvertDialog({ doc, close }: { doc: Doc; close: () => void }) {
   };
 
   return (
-    <Dialog title="Convert & export" subtitle={doc.title} width={880} height={560} onClose={close}
+    <Dialog title="Convert & export" subtitle={doc.title} width={880} height={560} onClose={close} stackOnPhone
       footer={<>
         <span style={{ font: 'var(--type-mono)', color: 'var(--mute)' }}>{fmt ? `→ ${outName}${target && openTab ? ` · opens in Tone ${target}` : ''}` : ''}</span>
         <span style={{ flex: 1 }} />
@@ -65,7 +67,7 @@ export function ConvertDialog({ doc, close }: { doc: Doc; close: () => void }) {
         ))}
       </div>
       <div style={{ flex: 1, display: 'flex', gap: 22, padding: 18, overflowY: 'auto' }}>
-        <div style={{ width: 180, height: 232, background: 'var(--paper)', boxShadow: 'var(--shadow-page)', padding: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="convert-preview" style={{ width: 180, height: 232, background: 'var(--paper)', boxShadow: 'var(--shadow-page)', padding: 16, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ height: 10, width: '70%', background: 'var(--paper-ink)' }} />
           {[90, 80, 86, 60].map((w, i) => <div key={i} style={{ height: 4, width: w + '%', background: 'var(--paper-line)' }} />)}
           <div style={{ flex: 1 }} />
@@ -83,7 +85,7 @@ export function ConvertDialog({ doc, close }: { doc: Doc; close: () => void }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
             <Checkbox checked onChange={() => {}} label={<>Keep original <span className="mono" style={{ color: 'var(--mute)' }}>{doc.title}</span></>} />
             {fmt?.opensIn && <Checkbox checked={openTab} onChange={setOpenTab} label="Open result in a new tab" />}
-            <Checkbox checked={drive} onChange={(v) => setDrive(v && hasDrive)} label={hasDrive ? 'Also save a copy to Google Drive' : 'Also save a copy to Google Drive (connect Drive in Settings first)'} />
+            <Checkbox checked={drive} disabled={!hasDrive} onChange={(v) => setDrive(v && hasDrive)} label={hasDrive ? 'Also save a copy to Google Drive' : 'Also save a copy to Google Drive (connect Drive in Settings first)'} />
           </div>
         </div>
       </div>

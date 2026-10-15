@@ -100,6 +100,8 @@ interface SettingsStore {
   load: () => Promise<void>;
   update: (patch: Partial<Settings>) => void;
   setSecret: (providerId: string, patch: Secrets[string]) => void;
+  /** Forget a provider's password / tokens (when the provider is removed). */
+  dropSecret: (providerId: string) => void;
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -151,6 +153,13 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   update: (patch) => {
     const s = { ...get().s, ...patch };
     set({ s });
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => persist(get().s, get().secrets), 300);
+  },
+  dropSecret: (providerId) => {
+    const secrets = { ...get().secrets };
+    delete secrets[providerId];
+    set({ secrets });
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => persist(get().s, get().secrets), 300);
   },

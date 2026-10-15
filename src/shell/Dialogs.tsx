@@ -69,7 +69,7 @@ export function ProviderBrowser({ close }: { close: () => void }) {
   }, [pid, path]);
   const crumbs = path ? path.split('/') : [];
   return (
-    <Dialog title="Open from storage" subtitle={cfg ? makeProvider(cfg, true).label() : ''} width={900} height={600} onClose={close}>
+    <Dialog title="Open from storage" subtitle={cfg ? makeProvider(cfg, true).label() : ''} width={900} height={600} onClose={close} stackOnPhone>
       {providers.length === 0 ? (
         <div className="empty-hint" style={{ padding: 18 }}>No storage connected. Add your NAS or Google Drive in Settings › Sync.</div>
       ) : <>

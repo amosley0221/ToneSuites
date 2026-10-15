@@ -18,7 +18,10 @@ export function TitleBar({ compact }: { compact: boolean }) {
   const [os, setOs] = useState<string>('web');
   const [drag, setDrag] = useState<number | null>(null);
   useEffect(() => { void osType().then(setOs); }, []);
-  const desktopChrome = isTauri && os !== 'android' && os !== 'ios';
+  // macOS uses the native window frame (rounded corners, red/yellow/green buttons overlaid at top left — see
+  // src-tauri/tauri.macos.conf.json); Windows/Linux get Tone's own minimise/maximise/close buttons.
+  const isMac = isTauri && os === 'macos';
+  const desktopChrome = isTauri && os !== 'android' && os !== 'ios' && !isMac;
 
   const tab = (id: string, mark: string, title: string, dirty = false, idx = -1) => {
     const on = id === activeId;
@@ -46,7 +49,9 @@ export function TitleBar({ compact }: { compact: boolean }) {
 
   return (
     <div data-tauri-drag-region style={{ height: 'var(--h-titlebar)', display: 'flex', alignItems: 'stretch', background: 'var(--bg0)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
-      <div onClick={() => setActive('home')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', cursor: 'pointer', flexShrink: 0 }}>
+      {/* Room for the macOS window buttons (and somewhere to drag the window from). */}
+      {isMac && <div data-tauri-drag-region style={{ width: 76, flexShrink: 0 }} />}
+      <div onClick={() => setActive('home')} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMac ? '0 16px 0 4px' : '0 16px', cursor: 'pointer', flexShrink: 0 }}>
         <div style={{ width: 14, height: 14, background: 'var(--accent)' }} />
         {!compact && <div style={{ font: 'var(--type-wordmark)', letterSpacing: 'var(--ls-wordmark)' }}>TONE</div>}
       </div>

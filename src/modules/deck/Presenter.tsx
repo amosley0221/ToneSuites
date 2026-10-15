@@ -65,12 +65,13 @@ export function Presenter({ doc, onExit }: { doc: DeckDoc; onExit: (summary?: st
   }, []);
 
   // Full screen for the duration of the show; leaving browser full screen (Esc) ends it.
+  const finishRef = useRef<() => void>(() => onExit());
   useEffect(() => {
     void setFullscreen(true);
-    const onFs = () => { if (!isTauri && !document.fullscreenElement) onExit(); };
+    const onFs = () => { if (!isTauri && !document.fullscreenElement) finishRef.current(); };
     const t = setTimeout(() => document.addEventListener('fullscreenchange', onFs), 300);
     return () => { clearTimeout(t); document.removeEventListener('fullscreenchange', onFs); void setFullscreen(false); };
-  }, [onExit]);
+  }, []);
 
   const recordSlideTime = () => {
     const i = stRef.current.index;
@@ -86,6 +87,7 @@ export function Presenter({ doc, onExit }: { doc: DeckDoc; onExit: (summary?: st
       onExit(`Rehearsal ${mmss(total)} — ${list}`);
     } else onExit();
   }, [mode, onExit]);
+  finishRef.current = finish;
 
   const go = useCallback((delta: 1 | -1) => {
     const cur = stRef.current;
@@ -125,8 +127,27 @@ export function Presenter({ doc, onExit }: { doc: DeckDoc; onExit: (summary?: st
     return () => window.removeEventListener('keydown', key, true);
   }, [go, finish, n]);
 
+  // Touch: swipe left / right to go forward / back (a tap still advances).
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+  const touch = {
+    onPointerDown: (e: React.PointerEvent) => { swipe.current = { x: e.clientX, y: e.clientY }; swiped.current = false; },
+    onPointerUp: (e: React.PointerEvent) => {
+      const s0 = swipe.current;
+      swipe.current = null;
+      if (!s0) return;
+      const dx = e.clientX - s0.x, dy = e.clientY - s0.y;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { swiped.current = true; go(dx < 0 ? 1 : -1); }
+    },
+  };
+  const tapNext = () => { if (swiped.current) { swiped.current = false; return; } go(1); };
+
   const fitW = (w: number, h: number) => Math.max(0, Math.floor(Math.min(w, (h * SLIDE_W) / SLIDE_H)));
-  const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: '#000', color: INK, zIndex: 1000, userSelect: 'none' };
+  const overlay: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: '#000', color: INK, zIndex: 1000, userSelect: 'none', touchAction: 'none',
+    paddingTop: 'var(--safe-top)', paddingRight: 'var(--safe-right)', paddingBottom: 'var(--safe-bottom)', paddingLeft: 'var(--safe-left)', boxSizing: 'border-box',
+  };
+  const narrow = typeof window !== 'undefined' && window.innerWidth < 760;
   const blankLayer = blank && <div style={{ position: 'absolute', inset: 0, background: blank === 'black' ? '#000' : '#fff', zIndex: 2 }} />;
   const endLayer = st.ended && (
     <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', font: 'var(--type-mono)', color: MUTE, zIndex: 1 }}>
@@ -136,8 +157,8 @@ export function Presenter({ doc, onExit }: { doc: DeckDoc; onExit: (summary?: st
 
   if (mode === 'present') {
     return (
-      <div style={overlay} onClick={() => go(1)} onContextMenu={(e) => { e.preventDefault(); go(-1); }}>
-        <div ref={stageRef} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'none' }}>
+      <div style={overlay} {...touch} onClick={tapNext} onContextMenu={(e) => { e.preventDefault(); go(-1); }}>
+        <div ref={stageRef} style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'none' }}>
           <Stage doc={doc} st={st} now={now} width={fitW(stageSize.w, stageSize.h)} />
         </div>
         {endLayer}{blankLayer}
@@ -151,43 +172,78 @@ export function Presenter({ doc, onExit }: { doc: DeckDoc; onExit: (summary?: st
   const clock = new Date();
   const btn: React.CSSProperties = { padding: '6px 12px', border: `1px solid ${LINE}`, background: 'transparent', color: INK, cursor: 'pointer', font: 'var(--type-label)', fontSize: 12, fontWeight: 700, textAlign: 'center' };
   const notes = d.slides[st.index]?.notes ?? '';
+  const header = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, font: 'var(--type-mono)', fontSize: 12, color: MUTE, whiteSpace: 'nowrap' }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{mode === 'rehearse' ? 'REHEARSING' : 'PRESENTING'} · {(doc.title || 'Deck').replace(/\.tone$/i, '').toUpperCase()}</span>
+      <span>Slide {pad2(st.index + 1)} of {n}</span>
+    </div>
+  );
+  const stage = (
+    <div ref={stageRef} onClick={tapNext} {...touch} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer' }}>
+      <Stage doc={doc} st={st} now={now} width={fitW(stageSize.w, stageSize.h)} />
+      {endLayer}{blankLayer}
+    </div>
+  );
+  const nextW = narrow ? 150 : 328;
+  const nextView = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: narrow ? 6 : 14, minWidth: 0, width: narrow ? nextW : undefined, flexShrink: 0 }}>
+      <div style={{ font: 'var(--type-mono)', fontSize: 12, color: MUTE }}>NEXT</div>
+      {next
+        ? <SlideView deck={d} slide={next} index={st.index + 1} total={n} width={nextW} mediaUrl={(p) => doc.mediaUrl(p)} />
+        : <div style={{ aspectRatio: '16 / 9', width: nextW, border: `1px solid ${LINE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', font: 'var(--type-mono)', fontSize: 11, color: MUTE, boxSizing: 'border-box' }}>End of deck</div>}
+      {next && <div style={{ font: 'var(--type-small)', color: MUTE, marginTop: narrow ? 0 : -6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slideTitle(next)}</div>}
+    </div>
+  );
+  const timers = (
+    <div style={{ display: 'grid', gridTemplateColumns: narrow ? '1fr' : '1fr 1fr', gap: narrow ? 6 : 10, marginTop: narrow ? 0 : 8, flex: narrow ? 1 : undefined, minWidth: 0 }}>
+      {[['ELAPSED', mmss(elapsedMs)], mode === 'rehearse' ? ['THIS SLIDE', mmss(slideMs)] : ['CLOCK', `${pad2(clock.getHours())}:${pad2(clock.getMinutes())}`]].map(([l, v]) => (
+        <div key={l} style={{ border: `1px solid ${LINE}`, padding: narrow ? '6px 10px' : 14 }}>
+          <div style={{ font: 'var(--type-mono)', fontSize: 10, color: MUTE }}>{l}</div>
+          <div style={{ font: `500 ${narrow ? 20 : 30}px var(--font-mono)`, letterSpacing: '-0.03em', marginTop: narrow ? 0 : 4, fontWeight: 800 }}>{v}</div>
+        </div>
+      ))}
+    </div>
+  );
+  const buttons = (
+    <div style={{ display: 'flex', gap: 6, marginTop: narrow ? 0 : 'auto' }}>
+      <button type="button" style={{ ...btn, flex: 1 }} onClick={() => go(-1)}>‹ Prev</button>
+      <button type="button" style={{ ...btn, flex: 1 }} onClick={() => go(1)}>Next ›</button>
+      <button type="button" style={{ ...btn, background: blank === 'black' ? INK : 'transparent', color: blank === 'black' ? '#000' : INK }} onClick={() => setBlank((b) => (b === 'black' ? null : 'black'))}>Black</button>
+      <button type="button" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)', fontWeight: 800, padding: '8px 16px' }} onClick={finish}>End</button>
+    </div>
+  );
+  const notesView = (
+    <div style={{ borderTop: `1px solid ${LINE}`, padding: narrow ? '12px 16px' : '20px 32px', display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', minHeight: 0 }}>
+      <div style={{ font: 'var(--type-mono)', fontSize: 11, color: MUTE }}>NOTES</div>
+      <div style={{ fontSize: narrow ? 17 : 20, fontWeight: 700, lineHeight: 1.4, maxWidth: 900, whiteSpace: 'pre-wrap', color: notes ? INK : MUTE }}>{notes || 'No notes for this slide.'}</div>
+    </div>
+  );
+
+  // Phone / narrow window: one column (slide, next + timers, buttons, notes).
+  if (narrow) {
+    return (
+      <div style={{ ...overlay, display: 'grid', gridTemplateRows: 'auto minmax(120px, 1fr) auto auto minmax(80px, 34%)', gap: 10 }}>
+        <div style={{ padding: '12px 16px 0' }}>{header}</div>
+        <div style={{ padding: '0 16px', display: 'flex', minHeight: 0 }}>{stage}</div>
+        <div style={{ padding: '0 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>{nextView}{timers}</div>
+        <div style={{ padding: '0 16px' }}>{buttons}</div>
+        {notesView}
+      </div>
+    );
+  }
+
   return (
-    <div style={{ ...overlay, display: 'grid', gridTemplateColumns: '1fr 360px', gridTemplateRows: '1fr 150px' }}>
+    <div style={{ ...overlay, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gridTemplateRows: 'minmax(0, 1fr) 150px' }}>
       <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, minHeight: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', font: 'var(--type-mono)', fontSize: 12, color: MUTE }}>
-          <span>{mode === 'rehearse' ? 'REHEARSING' : 'PRESENTING'} · {(doc.title || 'Deck').replace(/\.tone$/i, '').toUpperCase()}</span>
-          <span>Slide {pad2(st.index + 1)} of {n}</span>
-        </div>
-        <div ref={stageRef} onClick={() => go(1)} style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', cursor: 'pointer' }}>
-          <Stage doc={doc} st={st} now={now} width={fitW(stageSize.w, stageSize.h)} />
-          {endLayer}{blankLayer}
-        </div>
+        {header}
+        {stage}
       </div>
       <div style={{ padding: '32px 32px 0 0', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
-        <div style={{ font: 'var(--type-mono)', fontSize: 12, color: MUTE }}>NEXT</div>
-        {next
-          ? <SlideView deck={d} slide={next} index={st.index + 1} total={n} width={328} mediaUrl={(p) => doc.mediaUrl(p)} />
-          : <div style={{ aspectRatio: '16 / 9', border: `1px solid ${LINE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', font: 'var(--type-mono)', color: MUTE }}>End of deck</div>}
-        {next && <div style={{ font: 'var(--type-small)', color: MUTE, marginTop: -6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slideTitle(next)}</div>}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
-          {[['ELAPSED', mmss(elapsedMs)], mode === 'rehearse' ? ['THIS SLIDE', mmss(slideMs)] : ['CLOCK', `${pad2(clock.getHours())}:${pad2(clock.getMinutes())}`]].map(([l, v]) => (
-            <div key={l} style={{ border: `1px solid ${LINE}`, padding: 14 }}>
-              <div style={{ font: 'var(--type-mono)', fontSize: 10, color: MUTE }}>{l}</div>
-              <div style={{ font: '500 30px var(--font-mono)', letterSpacing: '-0.03em', marginTop: 4, fontWeight: 800 }}>{v}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingBottom: 0 }}>
-          <button type="button" style={{ ...btn, flex: 1 }} onClick={() => go(-1)}>‹ Prev</button>
-          <button type="button" style={{ ...btn, flex: 1 }} onClick={() => go(1)}>Next ›</button>
-          <button type="button" style={{ ...btn, background: blank === 'black' ? INK : 'transparent', color: blank === 'black' ? '#000' : INK }} onClick={() => setBlank((b) => (b === 'black' ? null : 'black'))}>Black</button>
-          <button type="button" style={{ ...btn, background: 'var(--accent)', color: 'var(--on-accent)', borderColor: 'var(--accent)', fontWeight: 800, padding: '8px 16px' }} onClick={finish}>End</button>
-        </div>
+        {nextView}
+        {timers}
+        {buttons}
       </div>
-      <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${LINE}`, padding: '20px 32px', display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
-        <div style={{ font: 'var(--type-mono)', fontSize: 11, color: MUTE }}>NOTES</div>
-        <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.4, maxWidth: 900, whiteSpace: 'pre-wrap', color: notes ? INK : MUTE }}>{notes || 'No notes for this slide.'}</div>
-      </div>
+      <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', minHeight: 0 }}>{notesView}</div>
     </div>
   );
 }

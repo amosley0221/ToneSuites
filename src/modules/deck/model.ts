@@ -36,6 +36,8 @@ interface ElBase extends Rect {
   id: string;
   /** Set when the element fills a layout placeholder. */
   ph?: PlaceholderRole;
+  /** A filled placeholder kept as a free element after a layout change; it becomes the placeholder again when a later layout has that role. */
+  phWas?: PlaceholderRole;
   anim?: Animation;
 }
 export interface TextEl extends ElBase { type: 'text'; role: TextRole; text: string; bullets: boolean; style: TextStyle }
@@ -194,17 +196,19 @@ export function applyLayout(d: DeckData, s: Slide, layoutId: LayoutId): void {
   const used = new Set<El>();
   const next: El[] = [];
   for (const p of layout.placeholders) {
-    const match = s.elements.find((e) => e.ph === p.role && !used.has(e));
+    const match = s.elements.find((e) => e.ph === p.role && !used.has(e))
+      ?? s.elements.find((e) => !e.ph && e.phWas === p.role && !used.has(e));
     if (match) {
       used.add(match);
       Object.assign(match, p.rect, { ph: p.role });
+      delete match.phWas;
       next.push(match);
     } else next.push(placeholderEl(p));
   }
   for (const e of s.elements) {
     if (used.has(e)) continue;
     if (e.ph && isEmptyEl(e)) continue;
-    if (e.ph) delete e.ph;
+    if (e.ph) { e.phWas = e.ph; delete e.ph; }
     next.push(e);
   }
   // Keep the original z-order for elements that already existed.

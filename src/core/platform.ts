@@ -187,6 +187,7 @@ export function browserPickFiles(exts: string[], multiple = false): Promise<{ na
     input.type = 'file';
     input.multiple = multiple;
     input.accept = exts.map((e) => '.' + e).join(',');
+    input.addEventListener('cancel', () => resolve([]));
     input.onchange = async () => {
       const files = Array.from(input.files ?? []);
       resolve(await Promise.all(files.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));

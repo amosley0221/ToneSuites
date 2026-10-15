@@ -215,3 +215,82 @@ describe('text layout & geometry helpers', () => {
     expect(resizeRect({ x: 0, y: 0, w: 200, h: 100 }, 'w', 250, 0, false, 10)).toEqual({ x: 190, y: 0, w: 10, h: 100 });
   });
 });
+
+describe('QA regressions', () => {
+  it('switching layouts and back restores a filled placeholder instead of adding an empty one', () => {
+    const d = emptyDeck();
+    const s = d.slides[0];
+    texts(s.elements).find((e) => e.ph === 'kicker')!.text = 'KICK';
+    applyLayout(d, s, 'title-content');
+    expect(texts(s.elements).find((e) => e.text === 'KICK')!.ph).toBeUndefined();
+    applyLayout(d, s, 'title');
+    const kickers = s.elements.filter((e) => e.ph === 'kicker');
+    expect(kickers).toHaveLength(1);
+    expect((kickers[0] as TextEl).text).toBe('KICK');
+    expect(kickers[0]).toMatchObject({ x: 128, y: 600 });
+  });
+
+  it('every editing op is undoable and redoable', () => {
+    const doc = new DeckDoc();
+    const snap = () => JSON.stringify(doc.data);
+    const check = (fn: () => void) => {
+      const before = snap();
+      fn();
+      const after = snap();
+      expect(after).not.toBe(before);
+      doc.undo();
+      expect(snap()).toBe(before);
+      doc.redo();
+      expect(snap()).toBe(after);
+    };
+    check(() => ops.addSlide(doc, 'two-column'));
+    check(() => ops.setLayout(doc, 'section'));
+    check(() => ops.duplicateSlide(doc));
+    check(() => ops.moveSlide(doc, 0, 2));
+    check(() => ops.deleteSlide(doc));
+    check(() => ops.setTransition(doc, 'push', true));
+    check(() => ops.insertShape(doc, 'ellipse'));
+    check(() => { doc.select([doc.slide()!.elements.at(-1)!.id]); ops.nudge(doc, 10, 0); });
+    check(() => ops.insertTable(doc));
+    check(() => { doc.select([doc.slide()!.elements.at(-1)!.id]); ops.toggleAnimation(doc); });
+    check(() => ops.insertText(doc));
+    check(() => { doc.select(doc.slide()!.elements.map((e) => e.id)); ops.align(doc, 'left'); });
+    check(() => { doc.select([doc.slide()!.elements[0].id]); ops.arrange(doc, 'front'); });
+    check(() => { doc.select([doc.slide()!.elements[0].id]); ops.duplicateSelection(doc); });
+    check(() => { doc.select([doc.slide()!.elements.at(-1)!.id]); ops.deleteSelection(doc); });
+    check(() => ops.setBackground(doc, '#f2f1ee', '#0c0c0e', 'theme'));
+    check(() => ops.pasteText(doc, 'hello'));
+  });
+
+  it('copies elements (with images) between decks through the clipboard payload', () => {
+    const a = new DeckDoc();
+    ops.setLayout(a, 'blank');
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    ops.insertImage(a, png, 'image/png', { w: 100, h: 50 });
+    ops.insertShape(a, 'rect');
+    a.select(a.slide()!.elements.map((e) => e.id));
+    const json = ops.clipboardPayload(a)!;
+    const b = new DeckDoc();
+    expect(ops.pastePayload(b, json)).toBe(true);
+    const img = b.slide()!.elements.find((e) => e.type === 'image');
+    expect(img && img.type === 'image' && Array.from(b.media.get(img.src)!.bytes)).toEqual(Array.from(png));
+    expect(b.slide()!.elements.filter((e) => e.type === 'shape')).toHaveLength(1);
+    // pasting again onto the same slide offsets the copies instead of stacking them exactly
+    ops.pastePayload(b, json);
+    const shapes = b.slide()!.elements.filter((e) => e.type === 'shape');
+    expect(shapes[1].x - shapes[0].x).toBe(40);
+    expect(ops.pastePayload(b, 'not json')).toBe(false);
+  });
+
+  it('exports tables in the Markdown outline', () => {
+    const doc = new DeckDoc();
+    ops.setLayout(doc, 'blank');
+    ops.insertTable(doc, 2, 2);
+    const t = doc.slide()!.elements[0];
+    if (t.type === 'table') t.rows = [['Region', 'Q3'], ['EMEA', '1|4M']];
+    const md = deckToMarkdown(doc.data, 'T');
+    expect(md).toContain('| Region | Q3 |');
+    expect(md).toContain('| --- | --- |');
+    expect(md).toContain('| EMEA | 1\\|4M |');
+  });
+});

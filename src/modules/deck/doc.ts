@@ -21,6 +21,8 @@ export interface DeckUi {
   showNotes: boolean;
   /** Bumped to (re)start the animation preview in the timeline. */
   previewToken?: number;
+  /** Where the user last clicked: Delete with nothing selected removes the slide only when the rail has focus. */
+  focus?: 'rail' | 'canvas';
 }
 
 const MAX_UNDO = 100;

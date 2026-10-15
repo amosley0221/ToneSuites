@@ -6,7 +6,7 @@ export interface ModuleMeta { id: Mode; mark: string; name: string; description:
 export const MODULE_META: Record<Mode, ModuleMeta> = {
   pixel: { id: 'pixel', mark: 'Px', name: 'Pixel', description: 'Layers, masks, retouch, RAW', opens: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'psd'] },
   cells: { id: 'cells', mark: 'Cl', name: 'Cells', description: 'Formulas, pivots, charts', opens: ['xlsx', 'csv', 'tsv'] },
-  deck: { id: 'deck', mark: 'Dk', name: 'Deck', description: 'Slides, present, record', opens: [] },
+  deck: { id: 'deck', mark: 'Dk', name: 'Deck', description: 'Slides, present, record', opens: ['toneoutline'] },
   write: { id: 'write', mark: 'Wr', name: 'Write', description: 'Long-form, styles, track changes', opens: ['docx', 'md', 'markdown', 'txt', 'html', 'htm'] },
   paper: { id: 'paper', mark: 'Pp', name: 'Paper', description: 'PDF annotate, sign, OCR, merge', opens: ['pdf'] },
 };

@@ -27,9 +27,22 @@ export interface SlideViewProps {
   onTextBlur?: (el: TextEl) => void;
   onCellInput?: (elId: string, r: number, c: number, text: string) => void;
   onCellBlur?: () => void;
+  /** Tab / Shift+Tab in a table cell: move to the next / previous cell. */
+  onCellNav?: (elId: string, r: number, c: number, back: boolean) => void;
   editingCell?: { r: number; c: number } | null;
   style?: CSSProperties;
   children?: React.ReactNode;
+}
+
+/** Focus a contentEditable and put the caret after its last character. */
+function focusAtEnd(n: HTMLElement) {
+  n.focus();
+  const r = document.createRange();
+  r.selectNodeContents(n);
+  r.collapse(false);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(r);
 }
 
 const ease = (p: number) => 1 - Math.pow(1 - p, 3);
@@ -103,13 +116,7 @@ function ElementView(props: { el: El; deck: DeckData; ink: string; p: SlideViewP
               if (n && n.dataset.init !== el.id) {
                 n.dataset.init = el.id;
                 n.innerText = el.text;
-                n.focus();
-                const r = document.createRange();
-                r.selectNodeContents(n);
-                r.collapse(false);
-                const sel = window.getSelection();
-                sel?.removeAllRanges();
-                sel?.addRange(r);
+                focusAtEnd(n);
               }
             }}
             onInput={(e) => p.onTextInput?.(el, (e.currentTarget as HTMLElement).innerText.replace(/\n$/, ''))}
@@ -125,7 +132,7 @@ function ElementView(props: { el: El; deck: DeckData; ink: string; p: SlideViewP
     const empty = !el.text.trim();
     if (empty && !p.hints) return null;
     return (
-      <div {...events} style={{ ...box, overflow: 'hidden' }} data-el={el.id}>
+      <div {...events} style={box} data-el={el.id}>
         {empty
           ? <div style={{ ...ts, opacity: 0.35 }}>{el.ph ? PH_HINT[el.ph] : 'Text'}</div>
           : <div style={ts}>{el.bullets ? <Bullets text={el.text} /> : el.text}</div>}
@@ -178,10 +185,13 @@ function ElementView(props: { el: El; deck: DeckData; ink: string; p: SlideViewP
                   <td key={c} style={{ border: `2px solid ${ink}33`, padding: '10px 16px', fontWeight: el.header && r === 0 ? 800 : 500, width: `${100 / cols}%`, verticalAlign: 'top', background: el.header && r === 0 ? `${ink}14` : 'transparent' }}>
                     {isEditing
                       ? <div contentEditable={'plaintext-only' as unknown as boolean} suppressContentEditableWarning
-                          ref={(n) => { if (n && n.dataset.init !== `${r}:${c}`) { n.dataset.init = `${r}:${c}`; n.innerText = cell; n.focus(); } }}
+                          ref={(n) => { if (n && n.dataset.init !== `${r}:${c}`) { n.dataset.init = `${r}:${c}`; n.innerText = cell; focusAtEnd(n); } }}
                           onInput={(e) => p.onCellInput?.(el.id, r, c, (e.currentTarget as HTMLElement).innerText.replace(/\n$/, ''))}
                           onBlur={() => p.onCellBlur?.()}
-                          onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); } }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Tab' && p.onCellNav) { e.preventDefault(); p.onCellNav(el.id, r, c, e.shiftKey); }
+                            else if (e.key === 'Escape' || e.key === 'Tab') { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); }
+                          }}
                           style={{ outline: 'none', minHeight: '1em', userSelect: 'text' }} />
                       : (cell || '​')}
                   </td>

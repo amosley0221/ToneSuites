@@ -68,6 +68,10 @@ export function normShortcut(s: string): string {
   return [...['ctrl', 'alt', 'shift'].filter((m) => mods.has(m)), key].join('+');
 }
 
+const PUNCT: Record<string, string> = {
+  BracketLeft: '[', BracketRight: ']', Comma: ',', Period: '.', Minus: '-', Equal: '=', Slash: '/', Backslash: '\\', Semicolon: ';', Quote: "'", Backquote: '`',
+};
+
 export function keyEvent(e: KeyboardEvent): string {
   const mods: string[] = [];
   if (e.ctrlKey || e.metaKey) mods.push('ctrl');
@@ -76,6 +80,8 @@ export function keyEvent(e: KeyboardEvent): string {
   let key = e.key.toLowerCase();
   if (e.code.startsWith('Key')) key = e.code.slice(3).toLowerCase();
   else if (e.code.startsWith('Digit')) key = e.code.slice(5);
+  // Shifted punctuation reports '}' etc. in e.key; match shortcuts by the physical key instead.
+  else if (PUNCT[e.code]) key = PUNCT[e.code];
   else if (key === 'escape') key = 'esc';
   else if (key === ' ') key = 'space';
   else if (key === 'delete') key = 'del';

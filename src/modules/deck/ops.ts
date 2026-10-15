@@ -127,7 +127,7 @@ export function deleteSelection(doc: DeckDoc) {
 export function duplicateSelection(doc: DeckDoc) {
   const s = doc.slide();
   if (!s) return;
-  const copies = doc.selected().map((e) => ({ ...JSON.parse(JSON.stringify(e)), id: newId(), ph: undefined, x: e.x + 40, y: e.y + 40 }) as El);
+  const copies = doc.selected().map((e) => ({ ...JSON.parse(JSON.stringify(e)), id: newId(), ph: undefined, phWas: undefined, x: e.x + 40, y: e.y + 40 }) as El);
   if (!copies.length) return;
   s.elements.push(...copies);
   doc.ui.selection = copies.map((c) => c.id);
@@ -146,14 +146,77 @@ export function cutSelection(doc: DeckDoc) {
   doc.ui.selection = [];
   doc.commit();
 }
-export function paste(doc: DeckDoc): boolean {
+
+/** Clipboard format for elements copied out of a deck (so they paste into another deck, images included). */
+export const CLIP_MIME = 'application/x-tone-deck';
+interface ClipPayload { v: 1; els: El[]; media: Record<string, string> }
+
+/** Serialize the selection for the system clipboard (images travel as data URLs). */
+export function clipboardPayload(doc: DeckDoc): string | null {
+  const els = doc.selected();
+  if (!els.length) return null;
+  const media: Record<string, string> = {};
+  for (const e of els) if (e.type === 'image' && e.src && doc.media.has(e.src)) media[e.src] = doc.mediaUrl(e.src);
+  return JSON.stringify({ v: 1, els, media } satisfies ClipPayload);
+}
+
+/** Plain-text version of the selection (text boxes and table cells). */
+export function clipboardText(els: El[]): string {
+  return els.map((e) => (e.type === 'text' ? e.text : e.type === 'table' ? e.rows.map((r) => r.join('\t')).join('\n') : '')).filter(Boolean).join('\n\n');
+}
+
+export function pastePayload(doc: DeckDoc, json: string): boolean {
+  let p: ClipPayload;
+  try { p = JSON.parse(json); } catch { return false; }
+  if (!p || p.v !== 1 || !Array.isArray(p.els) || !p.els.length) return false;
+  const remap = new Map<string, string>();
+  for (const [path, url] of Object.entries(p.media ?? {})) {
+    if (doc.media.has(path)) continue;
+    const m = /^data:([^;,]+);base64,(.*)$/.exec(url);
+    if (m) remap.set(path, doc.addMedia(fromBase64(m[2]), m[1]));
+  }
+  const els = p.els.map((e) => (e.type === 'image' && remap.has(e.src) ? { ...e, src: remap.get(e.src)! } : e));
+  return pasteEls(doc, els);
+}
+
+function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Paste copies of `els` onto the current slide; they shift only when they would land exactly on an existing element. */
+export function pasteEls(doc: DeckDoc, els: El[]): boolean {
   const s = doc.slide();
-  if (!s || !doc.clipboard.length) return false;
-  const copies = doc.clipboard.map((e) => ({ ...JSON.parse(JSON.stringify(e)), id: newId(), ph: undefined, x: e.x + 40, y: e.y + 40 }) as El);
+  if (!s || !els.length) return false;
+  const taken = (dx: number) => els.some((e) => s.elements.some((x) => x.type === e.type && x.x === e.x + dx && x.y === e.y + dx && x.w === e.w && x.h === e.h));
+  let off = 0;
+  while (taken(off) && off < 40 * 50) off += 40;
+  const copies = els.map((e) => {
+    const c = { ...JSON.parse(JSON.stringify(e)), id: newId(), x: e.x + off, y: e.y + off } as El;
+    delete c.ph; delete c.phWas;
+    return c;
+  });
   s.elements.push(...copies);
-  doc.clipboard = copies.map((c) => JSON.parse(JSON.stringify(c)));
   doc.ui.selection = copies.map((c) => c.id);
+  doc.ui.editing = null;
   doc.commit();
+  return true;
+}
+
+export function paste(doc: DeckDoc): boolean {
+  return pasteEls(doc, doc.clipboard);
+}
+
+/** Pasted plain text becomes a new text box. */
+export function pasteText(doc: DeckDoc, text: string): boolean {
+  const t = text.replace(/\r\n?/g, '\n').replace(/\s+$/, '');
+  if (!t.trim()) return false;
+  const lines = t.split('\n').length;
+  const h = Math.min(SLIDE_H - 80, Math.round(lines * 39 * 1.45 + 20));
+  const el = textEl('text', { x: 360, y: Math.max(40, Math.round((SLIDE_H - h) / 2)), w: 1200, h }, t);
+  insert(doc, el);
   return true;
 }
 

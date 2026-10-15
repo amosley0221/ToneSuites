@@ -7,6 +7,12 @@ updater show), and the app shows it in "What's new" after updating.
 ## [Unreleased]
 
 ### Fixed
+- Deck: paste screenshots and images with Ctrl+V, and copy/paste slide objects between decks.
+- Deck: Delete and arrow keys keep working after editing text; Delete no longer removes the whole slide unless the slide list is focused.
+- Deck: long titles no longer get cut off while editing; switching layouts keeps filled placeholders.
+- Deck: Presenter view works on phones (swipe to change slides); the slide list scrolls by touch.
+- Shortcuts that use Shift with punctuation (e.g. Bring to front, Ctrl Shift ]) now work in every module.
+- Outline files (.toneoutline) open from File › Open as a new deck.
 - Write: two-column page setup no longer hides your text, and headings no longer get stranded at the bottom of a page (on screen, PDF and Word).
 - Write: Ctrl Space clears formatting; Tab types a tab (and adds a row in the last table cell); numbered lists keep counting when you add to them; undoing a resolved comment brings it back.
 - Write: Word export header/footer page numbers are real page numbers.
@@ -32,6 +38,7 @@ updater show), and the app shows it in "What's new" after updating.
 - Cells: the column filter now filters the sheet as you type, shows how many rows match (or "No matches"), and finds values regardless of capitals, spaces or thousands separators (75568 finds 75,568). Cancel puts the previous filter back; OK keeps it, and it's saved with the file.
 
 ### Improved
+- Deck: Tab moves between table cells (and adds a row in the last one); outline export includes tables; importing an outline into a new deck no longer leaves an empty first slide.
 - Write: pasting from Word keeps bullets, numbering, titles and quotes; reopened Word files keep page breaks, quotes and code blocks.
 - Write on phones: Panels is first in the toolbar, tapping the page closes the panel, and Page setup / Table of contents fit the screen.
 - Settings, Convert & export and Open from storage fit on a phone screen (Galaxy Fold folded): the sections stack and scroll.

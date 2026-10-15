@@ -91,6 +91,7 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
   };
 
   const onElPointerDown = (e: React.PointerEvent, el: El) => {
+    doc.ui.focus = 'canvas';
     if (e.button !== 0) return;
     e.stopPropagation();
     if (doc.ui.editing === el.id) return;
@@ -120,6 +121,8 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
       if (moved) doc.commit();
       // A second click on a selected text box starts editing it (PowerPoint behaviour).
       else if (el.type === 'text' && !e.shiftKey && (wasOnlySelected || (el.ph && !el.text.trim()))) { doc.ui.editing = el.id; doc.emit(); }
+      // A second click (or tap) on a selected empty image placeholder opens the picker — touch has no reliable double-click.
+      else if (el.type === 'image' && !el.src && !e.shiftKey && wasOnlySelected) pickInto(el);
     });
   };
 
@@ -136,6 +139,7 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
   };
 
   const onBackgroundDown = (e: React.PointerEvent) => {
+    doc.ui.focus = 'canvas';
     if (e.button !== 0) return;
     if (doc.ui.editing) (document.activeElement as HTMLElement | null)?.blur();
     setEditingCell(null);
@@ -151,6 +155,15 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
     }, () => setMarquee(null));
   };
 
+  const lastPick = useRef(0);
+  const pickInto = (el: El) => {
+    // The click before a double-click may already have opened the picker.
+    if (Date.now() - lastPick.current < 800) return;
+    lastPick.current = Date.now();
+    doc.ui.selection = [el.id];
+    void pickAndInsertImage(doc, api).then(() => api.markDirty()).catch((err) => api.toast(String(err?.message ?? err), 'error'));
+  };
+
   const onElDoubleClick = (e: React.MouseEvent, el: El) => {
     e.stopPropagation();
     if (el.type === 'text') { doc.ui.editing = el.id; doc.ui.selection = [el.id]; doc.emit(); }
@@ -158,12 +171,26 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
       const td = (e.target as HTMLElement).closest('td');
       const tr = td?.parentElement as HTMLTableRowElement | null;
       if (td && tr) { setEditingCell({ r: tr.rowIndex, c: (td as HTMLTableCellElement).cellIndex }); doc.ui.editing = el.id; doc.emit(); }
-    } else if (el.type === 'image' && !el.src) {
-      doc.ui.selection = [el.id];
-      void pickAndInsertImage(doc, api).then(() => api.markDirty()).catch((err) => api.toast(String(err?.message ?? err), 'error'));
-    }
+    } else if (el.type === 'image' && !el.src) pickInto(el);
   };
 
+  const navigating = useRef(false);
+  const onCellNav = (id: string, r: number, c: number, back: boolean) => {
+    const el = slide.elements.find((x) => x.id === id);
+    if (el?.type !== 'table') return;
+    const cols = el.rows[0]?.length ?? 1;
+    let i = r * cols + c + (back ? -1 : 1);
+    if (i < 0) i = 0;
+    if (i >= el.rows.length * cols) {
+      // Tab in the last cell adds a row (PowerPoint behaviour).
+      el.h += el.h / el.rows.length;
+      el.rows.push(Array.from({ length: cols }, () => ''));
+      doc.commit();
+    }
+    navigating.current = true;
+    setEditingCell({ r: Math.floor(i / cols), c: i % cols });
+    setTimeout(() => { navigating.current = false; }, 0);
+  };
   const onTextInput = (el: TextEl, text: string) => { el.text = text; doc.commit('text:' + el.id); };
   const onTextBlur = (el: TextEl) => { if (doc.ui.editing === el.id) { doc.ui.editing = null; doc.emit(); } };
   const onCellInput = (id: string, r: number, c: number, text: string) => {
@@ -190,7 +217,8 @@ export function Canvas({ doc, api, animTime, pad = 32 }: { doc: DeckDoc; api: Mo
         <SlideView deck={d} slide={slide} index={doc.ui.current} total={d.slides.length} width={width} mediaUrl={(p) => doc.mediaUrl(p)} hints
           animTime={animTime} editingId={doc.ui.editing} editingCell={editingCell}
           onElPointerDown={onElPointerDown} onElDoubleClick={onElDoubleClick} onTextInput={onTextInput} onTextBlur={onTextBlur} onCellInput={onCellInput}
-          onCellBlur={() => { setEditingCell(null); if (doc.ui.editing) { doc.ui.editing = null; doc.emit(); } }} />
+          onCellNav={onCellNav}
+          onCellBlur={() => { if (navigating.current) return; setEditingCell(null); if (doc.ui.editing) { doc.ui.editing = null; doc.emit(); } }} />
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
           {emptyPh.map((el) => (
             <div key={'ph' + el.id} style={{ position: 'absolute', left: el.x * scale, top: el.y * scale, width: el.w * scale, height: el.h * scale, border: '1px dashed rgba(128,128,128,.55)' }} />

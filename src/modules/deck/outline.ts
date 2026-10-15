@@ -54,6 +54,7 @@ export function deckToMarkdown(d: DeckData, title: string): string {
   d.slides.forEach((s, i) => {
     out.push(`## ${slideTitle(s) || `Slide ${i + 1}`}`, '');
     for (const el of s.elements) {
+      if (el.type === 'table') { out.push(...tableToMarkdown(el.rows, el.header), ''); continue; }
       if (el.type !== 'text' || el.ph === 'title' || !el.text.trim()) continue;
       if (el.role === 'kicker') { out.push(`*${el.text.trim()}*`, ''); continue; }
       const lines = el.text.split('\n').filter((l) => l.trim());
@@ -62,4 +63,15 @@ export function deckToMarkdown(d: DeckData, title: string): string {
     if (s.notes.trim()) out.push(...s.notes.trim().split('\n').map((l) => `> ${l}`), '');
   });
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+/** GitHub-style Markdown table (Write opens it as a real table). */
+export function tableToMarkdown(rows: string[][], header: boolean): string[] {
+  const cols = rows[0]?.length ?? 0;
+  if (!rows.length || !cols) return [];
+  const cell = (t: string) => ` ${(t ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ').trim()} `;
+  const line = (r: string[]) => `|${Array.from({ length: cols }, (_, i) => cell(r[i])).join('|')}|`;
+  const head = header ? rows[0] : Array.from({ length: cols }, () => '');
+  const body = header ? rows.slice(1) : rows;
+  return [line(head), `|${Array.from({ length: cols }, () => ' --- ').join('|')}|`, ...body.map(line)];
 }

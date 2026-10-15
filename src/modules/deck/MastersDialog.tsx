@@ -93,9 +93,11 @@ export function MastersDialog({ doc, onClose }: { doc: DeckDoc; onClose: () => v
             {layout?.placeholders.map((p) => (
               <div key={p.role} style={{ position: 'absolute', left: p.rect.x, top: p.rect.y, width: p.rect.w, height: p.rect.h, overflow: 'hidden', padding: 8 }}>{sample(p.role)}</div>
             ))}
-            {(footer.slideNumber || footer.date || footer.showText) && (
-              <div style={{ position: 'absolute', right: 128, bottom: 46, fontFamily: cssFont(MONO_FONT), fontSize: 24, opacity: 0.5 }}>
-                {[footer.slideNumber ? '‹#›' : '', footer.date ? 'Date' : '', footer.showText ? (footer.text || 'Footer') : ''].filter(Boolean).join(' · ')}
+            {/* Same positions as on slides: number bottom-left, date · text bottom-right. */}
+            {footer.slideNumber && <div style={{ position: 'absolute', left: 128, bottom: 46, fontFamily: cssFont(MONO_FONT), fontSize: 26, opacity: 0.5 }}>‹#›</div>}
+            {(footer.date || footer.showText) && (
+              <div style={{ position: 'absolute', right: 128, bottom: 46, fontFamily: cssFont(MONO_FONT), fontSize: 26, opacity: 0.5 }}>
+                {[footer.date ? 'Date' : '', footer.showText ? (footer.text || 'Footer') : ''].filter(Boolean).join(' · ')}
               </div>
             )}
             {sel === 'master' && <div style={{ position: 'absolute', left: 128, top: 128, fontFamily: cssFont(MONO_FONT), fontSize: 29, opacity: 0.5 }}>Master · background and footer apply to every layout</div>}

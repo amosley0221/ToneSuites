@@ -1,7 +1,8 @@
 // Menu command handlers for Deck.
+import { isTauri } from '@/core/platform';
 import type { CommandHandler, ModuleApi } from '@/core/types';
 import { DeckDoc, extMime, sniffMime } from './doc';
-import type { LayoutId, ShapeKind, Transition } from './model';
+import { isEmptyEl, type LayoutId, type ShapeKind, type Transition } from './model';
 import * as ops from './ops';
 import { deckToMarkdown, outlineToDeck, parseOutline } from './outline';
 
@@ -45,7 +46,8 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
   // Wrap a handler: resolve the model, run, mark the tab dirty if data changed.
   const w = (fn: (d: DeckDoc) => void | Promise<void>): CommandHandler => async () => {
     const d = getModel();
-    if (!d) return;
+    // Shortcuts (Del, Ctrl D…) must not edit the slide hidden behind the Masters dialog or a running show.
+    if (!d || d.ui.mastersOpen || d.ui.presenting) return;
     const v = d.version;
     await fn(d);
     if (d.version !== v) api.markDirty();
@@ -54,8 +56,9 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
     const d = getModel();
     if (d) { fn(d); d.emit(); }
   };
+  // The desktop/Android save path toasts "Exported …" itself; the browser download does not.
   const save = async (bytes: Uint8Array, name: string, ext: string) => {
-    if (await api.saveBytes(bytes, name, [ext])) api.toast(`Exported ${name}`);
+    if (await api.saveBytes(bytes, name, [ext]) && !isTauri) api.toast(`Exported ${name}`);
   };
   const title = (d: DeckDoc) => deckTitle(d);
 
@@ -65,8 +68,11 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
       const [f] = await api.pickFile(['toneoutline', 'json']);
       if (!f) return;
       const add = outlineToDeck(parseOutline(new TextDecoder().decode(f.bytes))).slides;
-      d.data.slides.splice(d.ui.current + 1, 0, ...add);
-      d.ui.current += 1;
+      if (!add.length) { api.toast('That outline has no slides', 'error'); return; }
+      // A brand-new deck (one untouched slide) is replaced instead of keeping an empty first slide.
+      const blank = d.data.slides.length === 1 && d.data.slides[0].elements.every(isEmptyEl) && !d.data.slides[0].notes.trim();
+      if (blank) { d.data.slides = add; d.ui.current = 0; } else { d.data.slides.splice(d.ui.current + 1, 0, ...add); d.ui.current += 1; }
+      d.ui.selection = [];
       d.commit();
       api.toast(`Imported ${add.length} slide${add.length === 1 ? '' : 's'}`);
     }),
@@ -78,8 +84,18 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
     // Edit
     'deck.edit.undo': w((d) => { if (typingInField()) document.execCommand('undo'); else d.undo(); }),
     'deck.edit.redo': w((d) => { if (typingInField()) document.execCommand('redo'); else d.redo(); }),
-    'deck.edit.cut': w((d) => { if (typingInField()) document.execCommand('cut'); else ops.cutSelection(d); }),
-    'deck.edit.copy': w((d) => { if (typingInField()) document.execCommand('copy'); else ops.copySelection(d); }),
+    // Copy/cut go through the browser clipboard event (the Editor puts the elements on the system clipboard);
+    // the in-deck clipboard is the fallback.
+    'deck.edit.cut': w((d) => {
+      if (typingInField()) { document.execCommand('cut'); return; }
+      try { document.execCommand('cut'); } catch { /* unsupported */ }
+      if (d.ui.selection.length) ops.cutSelection(d);
+    }),
+    'deck.edit.copy': w((d) => {
+      if (typingInField()) { document.execCommand('copy'); return; }
+      try { document.execCommand('copy'); } catch { /* unsupported */ }
+      ops.copySelection(d);
+    }),
     'deck.edit.paste': w(async (d) => {
       if (typingInField()) return;
       if (ops.paste(d)) return;
@@ -92,7 +108,11 @@ export function deckCommands(getModel: () => DeckDoc | undefined, api: ModuleApi
       } catch { /* clipboard permission denied or unsupported */ }
     }),
     'deck.edit.duplicate': w((d) => { if (d.ui.selection.length) ops.duplicateSelection(d); else ops.duplicateSlide(d); }),
-    'deck.edit.delete': w((d) => { if (!typingInField()) ops.deleteSelection(d); }),
+    'deck.edit.delete': w((d) => {
+      if (typingInField()) return;
+      if (d.ui.selection.length) ops.deleteSelection(d);
+      else if (d.ui.focus === 'rail') ops.deleteSlide(d);
+    }),
     'deck.edit.selectAll': w((d) => { if (typingInField()) document.execCommand('selectAll'); else ops.selectAll(d); }),
     'deck.edit.deselect': w((d) => d.select([])),
 

@@ -1,5 +1,5 @@
 // Slide thumbnail rail: virtualized list, click to select, drag to reorder, context menu.
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { DeckDoc } from './doc';
 import * as ops from './ops';
 import { PopMenu } from './parts';
@@ -23,6 +23,24 @@ export function ThumbRail({ doc, width = 200 }: { doc: DeckDoc; width?: number }
   const first = Math.max(0, Math.floor((scrollTop - PAD) / item) - 2);
   const last = Math.min(n - 1, Math.ceil((scrollTop + viewH) / item) + 2);
 
+  // Track the rail's height (thumbnails are virtualized) and keep the current slide in view.
+  useEffect(() => {
+    const n = scroller.current;
+    if (!n) return;
+    const ro = new ResizeObserver(() => setViewH(n.clientHeight));
+    ro.observe(n);
+    setViewH(n.clientHeight);
+    return () => ro.disconnect();
+  }, []);
+  const cur = doc.ui.current;
+  useEffect(() => {
+    const n = scroller.current;
+    if (!n) return;
+    const top = PAD + cur * item, bottom = top + thumbH;
+    if (top < n.scrollTop) n.scrollTop = top - PAD;
+    else if (bottom > n.scrollTop + n.clientHeight) n.scrollTop = bottom - n.clientHeight + PAD;
+  }, [cur, item, thumbH, PAD]);
+
   const indexAt = (clientY: number) => {
     const r = scroller.current!.getBoundingClientRect();
     const y = clientY - r.top + scroller.current!.scrollTop - PAD;
@@ -30,6 +48,7 @@ export function ThumbRail({ doc, width = 200 }: { doc: DeckDoc; width?: number }
   };
 
   const onDown = (e: React.PointerEvent, i: number) => {
+    doc.ui.focus = 'rail';
     if (e.button !== 0) return;
     const sy = e.clientY;
     let dragging = false;
@@ -45,7 +64,10 @@ export function ThumbRail({ doc, width = 200 }: { doc: DeckDoc; width?: number }
     const up = (ev: PointerEvent) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       setDragTo(null);
+      // On touch the browser takes over vertical moves to scroll the rail (pointercancel): no reorder, no select.
+      if (ev.type === 'pointercancel') return;
       if (dragging) {
         const to = indexAt(ev.clientY);
         const target = to > i ? to - 1 : to;
@@ -54,6 +76,7 @@ export function ThumbRail({ doc, width = 200 }: { doc: DeckDoc; width?: number }
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   const rows: React.ReactNode[] = [];
@@ -61,8 +84,8 @@ export function ThumbRail({ doc, width = 200 }: { doc: DeckDoc; width?: number }
     const s = d.slides[i];
     const active = i === doc.ui.current;
     rows.push(
-      <div key={s.id} onPointerDown={(e) => onDown(e, i)} onContextMenu={(e) => { e.preventDefault(); doc.goTo(i); setMenu({ x: e.clientX, y: e.clientY, i }); }}
-        style={{ position: 'absolute', top: PAD + i * item, left: PAD, right: PAD, display: 'flex', gap: 8, cursor: 'pointer', touchAction: 'none' }}>
+      <div key={s.id} onPointerDown={(e) => onDown(e, i)} onContextMenu={(e) => { e.preventDefault(); doc.ui.focus = 'rail'; doc.goTo(i); setMenu({ x: e.clientX, y: e.clientY, i }); }}
+        style={{ position: 'absolute', top: PAD + i * item, left: PAD, right: PAD, display: 'flex', gap: 8, cursor: 'pointer', touchAction: 'pan-y', WebkitTouchCallout: 'none', userSelect: 'none' }}>
         {!narrow && <div style={{ width: NUM_W, font: 'var(--type-mono)', fontSize: 10, color: active ? 'var(--ink)' : 'var(--mute)', paddingTop: 2 }}>{String(i + 1).padStart(2, '0')}</div>}
         <div style={{ border: `2px solid ${active ? 'var(--accent)' : 'var(--line)'}`, lineHeight: 0 }}>
           <SlideView deck={d} slide={s} index={i} total={n} width={thumbW - 4} mediaUrl={(p) => doc.mediaUrl(p)} />

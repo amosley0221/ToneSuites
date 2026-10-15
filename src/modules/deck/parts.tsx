@@ -1,5 +1,5 @@
 // Small UI pieces used across the Deck editor.
-import React, { ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Button, MenuItem } from '@/ui';
 import type { DeckDoc } from './doc';
 
@@ -8,19 +8,18 @@ export function useDeck(doc: DeckDoc): number {
   return useSyncExternalStore((cb) => doc.subscribe(cb), () => doc.version);
 }
 
-/** Track an element's size. */
-export function useSize<T extends HTMLElement>(): [React.RefObject<T | null>, { w: number; h: number }] {
-  const ref = useRef<T>(null);
+/** Track an element's size. Returns a callback ref, so a remounted element (e.g. after a layout switch) is observed too. */
+export function useSize<T extends HTMLElement>(): [(n: T | null) => void, { w: number; h: number }] {
+  const [node, setNode] = useState<T | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
-    const n = ref.current;
-    if (!n) return;
-    const ro = new ResizeObserver(() => setSize({ w: n.clientWidth, h: n.clientHeight }));
-    ro.observe(n);
-    setSize({ w: n.clientWidth, h: n.clientHeight });
+    if (!node) return;
+    const ro = new ResizeObserver(() => setSize({ w: node.clientWidth, h: node.clientHeight }));
+    ro.observe(node);
+    setSize({ w: node.clientWidth, h: node.clientHeight });
     return () => ro.disconnect();
-  }, []);
-  return [ref, size];
+  }, [node]);
+  return [setNode, size];
 }
 
 export interface PopItem { label: ReactNode; onClick: () => void; checked?: boolean; hint?: string; disabled?: boolean }

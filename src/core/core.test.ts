@@ -42,6 +42,10 @@ describe('shortcuts', () => {
     expect(normShortcut('F12')).toBe('f12');
     expect(normShortcut('Ctrl +')).toBe('ctrl+=');
   });
+  it('matches shifted punctuation by physical key', () => {
+    const ev = { key: '}', code: 'BracketRight', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true } as KeyboardEvent;
+    expect(keyEvent(ev)).toBe(normShortcut('Ctrl Shift ]'));
+  });
   it('matches Ctrl Space against the key event', () => {
     const ev = { key: ' ', code: 'Space', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false } as KeyboardEvent;
     expect(keyEvent(ev)).toBe(normShortcut('Ctrl Space'));

@@ -63,6 +63,8 @@ async function decode(bytes: Uint8Array, filename: string): Promise<{ mode: Mode
   const mode = modeForExt(ext);
   if (!mode) throw new Error(`Tone can't open .${ext} files yet`);
   const mod = await loadModule(mode);
+  // An outline is an import format: the result is a new deck, saved as .tone.
+  if (ext === 'toneoutline') return { mode, model: await mod.openFile(bytes, filename), title: stripExt(filename) + '.tone', format: 'tone' };
   return { mode, model: await mod.openFile(bytes, filename), title: basename(filename), format: ext };
 }
 

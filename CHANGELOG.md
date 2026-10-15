@@ -6,6 +6,8 @@ updater show), and the app shows it in "What's new" after updating.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-15
+
 ### Fixed
 - Closing the app window with unsaved documents now asks: Save all and close, Close without saving, or Cancel (before, unsaved changes could be lost).
 - Files you opened from elsewhere (CSV, Excel, Word, PDF…) are no longer autosaved over the original every few seconds — they save when you press Save. Tone documents (.tone) still autosave.
